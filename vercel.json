@@ -27,15 +27,5 @@
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
       ]
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/telegram/webhook",
-      "destination": "/api/telegram/webhook.ts"
-    },
-    {
-      "source": "/api/telegram/set-webhook",
-      "destination": "/api/telegram/set-webhook.ts"
-    }
   ]
 }
