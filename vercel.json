@@ -1,4 +1,6 @@
 {
+  "buildCommand": "echo 'No build step for serverless functions'",
+  "outputDirectory": ".",
   "functions": {
     "api/**/*.ts": {
       "maxDuration": 30,
