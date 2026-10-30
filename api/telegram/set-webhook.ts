@@ -1,8 +1,7 @@
-import { bot } from "./bot";
-import { getEnv } from "../lib/utils/env";
+import { bot } from "./bot.js";
+import { getEnv } from "../../lib/utils/env.js";
 
 export default async function handler(req: Request): Promise<Response> {
-  // فقط POST للسماح بتعيين الويب هوك
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
   }
@@ -12,7 +11,6 @@ export default async function handler(req: Request): Promise<Response> {
     const WEBHOOK_URL = `${BASE_URL}/api/telegram/webhook`;
     const SECRET = getEnv("TELEGRAM_WEBHOOK_SECRET");
 
-    // تعيين الويب هوك مع السر
     const result = await bot.api.setWebhook(WEBHOOK_URL, {
       secret_token: SECRET,
       allowed_updates: [
@@ -24,7 +22,6 @@ export default async function handler(req: Request): Promise<Response> {
       drop_pending_updates: true,
     });
 
-    // التحقق من التعيين
     const info = await bot.api.getWebhookInfo();
 
     return new Response(JSON.stringify({ ok: result, info }), {

@@ -1,8 +1,8 @@
 import { Context, InlineKeyboard } from "grammy";
-import { MyContext, MyConversation } from "../bot";
+import { MyContext, MyConversation } from "../bot.js";
 import { createClient } from "@supabase/supabase-js";
-import { getEnv } from "../../lib/utils/env";
-import { formatNotificationPreview } from "../../lib/telegram/formatters/announcements";
+import { getEnv } from "../../../lib/utils/env.js";
+import { formatNotificationPreview } from "../../../lib/telegram/formatters/announcements.js";
 
 const supabase = createClient(
   getEnv("SUPABASE_URL"),
@@ -232,9 +232,9 @@ async function sendFCMBatch(tokens: string[], message: { title: string; body: st
         }),
       });
       
-      const result = await response.json();
-      sent += result.success || 0;
-      failed += result.failure || 0;
+      const result = await response.json() as { success?: number; failure?: number };
+      sent += result.success ?? 0;
+      failed += result.failure ?? 0;
     } catch (e) {
       failed += batch.length;
       console.error("FCM batch error:", e);

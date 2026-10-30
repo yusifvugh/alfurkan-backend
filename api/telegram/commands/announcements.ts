@@ -1,8 +1,8 @@
 import { Context, InlineKeyboard } from "grammy";
-import { MyContext, MyConversation } from "../bot";
+import { MyContext, MyConversation } from "../bot.js";
 import { createClient } from "@supabase/supabase-js";
-import { getEnv } from "../../lib/utils/env";
-import { formatAnnouncementPreview } from "../../lib/telegram/formatters/announcements";
+import { getEnv } from "../../../lib/utils/env.js";
+import { formatAnnouncementPreview } from "../../../lib/telegram/formatters/announcements.js";
 
 const supabase = createClient(
   getEnv("SUPABASE_URL"),
@@ -289,8 +289,6 @@ export async function unpublishAnnouncement(ctx: MyContext, announcementId: stri
 // ============================================
 
 async function sendAnnouncementPush(announcement: any) {
-  // يمكن تنفيذ منطق الإرسال هنا
-  // باستخدام FCM أو نظام الإشعارات الداخلي
   console.log("Sending push for announcement:", announcement.id);
 }
 
@@ -299,7 +297,6 @@ async function sendAnnouncementPush(announcement: any) {
 // ============================================
 
 async function scheduleAnnouncementPublish(announcementId: string, scheduledAt: Date) {
-  // يمكن تنفيذ جدولة النشر باستخدام cron jobs
   console.log("Scheduling announcement publish:", announcementId, "at", scheduledAt);
 }
 

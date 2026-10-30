@@ -1,5 +1,4 @@
-import { getEnv } from "../../lib/utils/env";
-import { kv } from "@vercel/kv";
+import { getEnv } from "../../lib/utils/env.js";
 
 export default async function handler(req: Request): Promise<Response> {
   const authHeader = req.headers.get("authorization");
@@ -9,7 +8,6 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    // جلب بيانات الأسبوع الماضي
     const weeklyStats = await fetchWeeklyStats();
     const message = formatWeeklySummary(weeklyStats);
     
@@ -49,7 +47,6 @@ interface WeeklyStats {
 }
 
 async function fetchWeeklyStats(): Promise<WeeklyStats> {
-  // يمكن تنفيذ منطق معقد هنا لجلب إحصائيات الأسبوع
   return {
     totalErrors: 0,
     fatalErrors: 0,

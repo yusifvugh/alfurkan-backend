@@ -1,5 +1,5 @@
 import { Context, InlineKeyboard } from "grammy";
-import { MyContext } from "../bot";
+import { MyContext } from "../bot.js";
 
 // ============================================
 // Content Management Menu (Placeholder)

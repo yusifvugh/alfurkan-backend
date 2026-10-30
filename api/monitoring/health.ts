@@ -1,4 +1,4 @@
-import { performHealthChecks } from "../lib/monitoring/health-check";
+import { performHealthChecks } from "../../lib/monitoring/health-check.js";
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== "GET") {

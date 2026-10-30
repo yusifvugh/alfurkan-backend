@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { getEnv } from "../utils/env";
+import { getEnv } from "../utils/env.js";
 
 const supabase = createClient(
   getEnv("SUPABASE_URL"),
@@ -44,7 +44,7 @@ export async function getSystemStatus(): Promise<string> {
   return msg;
 }
 
-async function performHealthChecks(): Promise<HealthCheckResult> {
+export async function performHealthChecks(): Promise<HealthCheckResult> {
   const checks: ServiceCheck[] = [];
   const start = Date.now();
   
@@ -68,7 +68,6 @@ async function performHealthChecks(): Promise<HealthCheckResult> {
   checks.push(await checkService("FCM", async () => {
     const fcmStart = Date.now();
     try {
-      // التحقق البسيط من صحة المفاتيح
       const projectId = getEnv("FCM_PROJECT_ID");
       const response = await fetch(
         `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
@@ -152,7 +151,5 @@ async function checkService(
 }
 
 async function getFCMAccessToken(): Promise<string> {
-  // في البيئة الحقيقية، استخدم firebase-admin SDK
-  // هنا نرجع قيمة مخزنة أو نولد توكن
   return process.env.FCM_ACCESS_TOKEN ?? "";
 }

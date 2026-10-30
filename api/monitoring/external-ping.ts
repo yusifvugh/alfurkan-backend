@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { getEnv } from "../../lib/utils/env";
-import { kv } from "@vercel/kv";
+import { getEnv } from "../../lib/utils/env.js";
 
 const supabase = createClient(
   getEnv("SUPABASE_URL"),
@@ -20,7 +19,6 @@ interface ServiceCheck {
 }
 
 export default async function handler(req: Request): Promise<Response> {
-  // التحقق من أن الطلب من Vercel Cron
   const authHeader = req.headers.get("authorization");
   const cronSecret = getEnv("CRON_SECRET");
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
@@ -130,9 +128,6 @@ export default async function handler(req: Request): Promise<Response> {
     });
   }
 
-  // حفظ النتائج في KV
-  await kv.set("monitoring:latest", results, { ex: 300 });
-
   // التحقق من التنبيهات الحرجة
   const downServices = results.checks.filter(c => c.status === "down");
   if (downServices.length > 0) {
@@ -154,7 +149,6 @@ async function sendCriticalAlert(downServices: ServiceCheck[]) {
     downServices.map(s => `❌ ${s.name}: ${s.details}`).join("\n") +
     `\n\n⏰ ${new Date().toLocaleString("ar-SA")}`;
   
-  // إرسال عبر Telegram Bot API مباشرة
   const botToken = getEnv("TELEGRAM_BOT_TOKEN");
   const chatId = getEnv("ADMIN_CHAT_ID");
   

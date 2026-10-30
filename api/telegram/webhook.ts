@@ -1,20 +1,17 @@
-import { bot } from "./bot";
+import { bot } from "./bot.js";
+import type { Update } from "grammy/types";
 
 // Vercel Serverless Function Handler
 export default async function handler(req: Request): Promise<Response> {
-  // Handle only POST requests from Telegram
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
   }
 
   try {
-    // Process the update through grammY
-    const response = await bot.handleUpdate(
-      await req.json(),
-      req as unknown as import("grammy").BotContext<import("grammy").Context>
-    );
+    const update = await req.json() as Update;
+    await bot.handleUpdate(update);
     
-    return new Response(JSON.stringify({ ok: true, result: response }), {
+    return new Response(JSON.stringify({ ok: true }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });

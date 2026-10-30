@@ -1,9 +1,8 @@
 import { Context, InlineKeyboard } from "grammy";
-import { MyContext } from "../bot";
-import { kv } from "@vercel/kv";
-import { getEnv } from "../../lib/utils/env";
-import { healthCheck, getSystemStatus } from "../../lib/monitoring/health-check";
-import { fetchSentryIssues, fetchSentryIssue, updateSentryIssueStatus } from "../../lib/sentry/alerts";
+import { MyContext } from "../bot.js";
+import { getEnv } from "../../../lib/utils/env.js";
+import { healthCheck, getSystemStatus, performHealthChecks } from "../../../lib/monitoring/health-check.js";
+import { fetchSentryIssues, fetchSentryIssue, updateSentryIssueStatus } from "../../../lib/sentry/alerts.js";
 
 interface SentryIssue {
   id: string;
@@ -51,11 +50,11 @@ export async function monitoringMenu(ctx: MyContext) {
 // ============================================
 
 export async function healthCommand(ctx: MyContext) {
-  const result = await healthCheck();
+  const result = await performHealthChecks();
   const allHealthy = result.healthy;
   const statusEmoji = allHealthy ? "🟢" : "🔴";
   
-  let msg = `${statusEmoji} *حالة الخدمات* (${new Date().toLocaleString("ar-SA")})\n\n`;
+  let msg = `${statusEmoji} *حالة الخدمات* (${new Date(result.timestamp).toLocaleString("ar-SA")})\n\n`;
   
   for (const check of result.checks) {
     const emoji = check.status === "healthy" ? "🟢" : 
@@ -308,30 +307,24 @@ export async function versionsReportCommand(ctx: MyContext) {
 
 export async function performanceReportCommand(ctx: MyContext) {
   try {
-    // يمكن جلب بيانات الأداء من Sentry أو من monitoring KV
-    const monitoringData = await kv.get<MonitoringResult>("monitoring:latest");
+    const result = await performHealthChecks();
     
     let msg = "📊 *تقارير الأداء*\n\n";
     
-    if (monitoringData) {
-      msg += `⏱️ *آخر فحص:* ${new Date(monitoringData.timestamp).toLocaleString("ar-SA")}\n\n`;
-      
-      for (const check of monitoringData.checks) {
-        const emoji = check.status === "healthy" ? "🟢" : 
-                      check.status === "degraded" ? "🟡" : "🔴";
-        msg += `${emoji} *${check.name}*: `;
-        if (check.latencyMs) {
-          msg += `${check.latencyMs}ms`;
-        } else {
-          msg += "غير متاح";
-        }
-        msg += `\n`;
+    msg += `⏱️ *آخر فحص:* ${new Date(result.timestamp).toLocaleString("ar-SA")}\n\n`;
+    
+    for (const check of result.checks) {
+      const emoji = check.status === "healthy" ? "🟢" : 
+                    check.status === "degraded" ? "🟡" : "🔴";
+      msg += `${emoji} *${check.name}*: `;
+      if (check.latencyMs) {
+        msg += `${check.latencyMs}ms`;
+      } else {
+        msg += "غير متاح";
       }
-    } else {
-      msg += "لا توجد بيانات أداء حديثة.";
+      msg += `\n`;
     }
     
-    // إحصائيات Sentry للأداء
     msg += `\n📈 *إحصائيات Sentry (24 ساعة):*\n`;
     msg += `   • متوسط زمن الاستجابة: غير متاح\n`;
     msg += `   • معدل الأخطاء: غير متاح\n`;
@@ -353,40 +346,8 @@ export async function performanceReportCommand(ctx: MyContext) {
 // ============================================
 
 export async function alertsHistoryCommand(ctx: MyContext) {
-  try {
-    // جلب سجل التنبيهات من KV أو قاعدة البيانات
-    const alerts = await kv.get<AlertLog[]>("alerts:history") ?? [];
-    
-    if (alerts.length === 0) {
-      return ctx.reply("✅ لا توجد تنبيهات مسجلة.");
-    }
-    
-    let msg = "📜 *سجل التنبيهات (آخر 20)*\n\n";
-    
-    for (const alert of alerts.slice(0, 20)) {
-      const emoji = alert.severity === "critical" ? "🔴" : "🟡";
-      msg += `${emoji} ${alert.title}\n`;
-      msg += `   ⏰ ${new Date(alert.timestamp).toLocaleString("ar-SA")}\n`;
-      msg += `   📊 ${alert.type}\n\n`;
-    }
-    
-    const keyboard = new InlineKeyboard()
-      .text("🔄 تحديث", "mon:alerts")
-      .text("🔙 العودة", "menu:monitoring");
-    
-    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: keyboard });
-  } catch (error) {
-    console.error("Alerts history error:", error);
-    await ctx.reply("❌ تعذر جلب سجل التنبيهات");
-  }
-}
-
-interface AlertLog {
-  id: string;
-  type: string;
-  title: string;
-  severity: "critical" | "warning";
-  timestamp: string;
+  // Note: In production, fetch from database
+  await ctx.reply("📜 *سجل التنبيهات*\n\nقيد التطوير - سيتم جلب السجل من قاعدة البيانات", { parse_mode: "Markdown" });
 }
 
 // ============================================
@@ -406,7 +367,6 @@ export async function summaryCommand(ctx: MyContext) {
 }
 
 export async function dailySummaryCommand(ctx: MyContext) {
-  // يمكن جلب الملخص اليومي المحفوظ
   await ctx.reply("📅 *الملخص اليومي*\n\nجاري التحضير...", { parse_mode: "Markdown" });
 }
 
@@ -443,18 +403,6 @@ function translateStatus(status: string): string {
     case "ignored": return "متجاهلة";
     default: return status;
   }
-}
-
-interface MonitoringResult {
-  timestamp: string;
-  checks: ServiceCheck[];
-}
-
-interface ServiceCheck {
-  name: string;
-  status: "healthy" | "degraded" | "down";
-  latencyMs: number | null;
-  details: string;
 }
 
 // ============================================

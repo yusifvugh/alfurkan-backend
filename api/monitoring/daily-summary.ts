@@ -1,5 +1,4 @@
-import { getEnv } from "../../lib/utils/env";
-import { kv } from "@vercel/kv";
+import { getEnv } from "../../lib/utils/env.js";
 
 export default async function handler(req: Request): Promise<Response> {
   const authHeader = req.headers.get("authorization");
@@ -9,18 +8,11 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    // جلب الإحصائيات من Sentry
     const sentryStats = await fetchSentryStats();
-    
-    // جلب إحصائيات الإشعارات من قاعدة البيانات
     const notificationStats = await fetchNotificationStats();
     
-    // جلب حالة الخدمات
-    const monitoringData = await kv.get<MonitoringResult>("monitoring:latest");
+    const message = formatDailySummary(sentryStats, notificationStats, null);
     
-    const message = formatDailySummary(sentryStats, notificationStats, monitoringData);
-    
-    // إرسال للمدير
     await sendTelegramMessage(getEnv("ADMIN_CHAT_ID"), message);
     
     return new Response(JSON.stringify({ ok: true, sent: true }), {
@@ -53,18 +45,6 @@ interface NotificationStats {
   notificationsFailed: number;
 }
 
-interface MonitoringResult {
-  timestamp: string;
-  checks: ServiceCheck[];
-}
-
-interface ServiceCheck {
-  name: string;
-  status: "healthy" | "degraded" | "down";
-  latencyMs: number | null;
-  details: string;
-}
-
 async function fetchSentryStats(): Promise<SentryStats> {
   try {
     const org = getEnv("SENTRY_ORG");
@@ -81,9 +61,12 @@ async function fetchSentryStats(): Promise<SentryStats> {
     
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     
-    const data = await response.json();
+    interface SentryStatsResponse {
+      received?: number;
+    }
     
-    // معالجة البيانات (مبسط)
+    const data = await response.json() as SentryStatsResponse[];
+    
     return {
       totalErrors: data[0]?.received ?? 0,
       fatalErrors: 0,
@@ -110,7 +93,6 @@ async function fetchSentryStats(): Promise<SentryStats> {
 }
 
 async function fetchNotificationStats(): Promise<NotificationStats> {
-  // يمكن جلبها من Supabase
   return {
     campaignsSent: 0,
     notificationsDelivered: 0,
@@ -121,7 +103,7 @@ async function fetchNotificationStats(): Promise<NotificationStats> {
 function formatDailySummary(
   sentry: SentryStats,
   notifications: NotificationStats,
-  monitoring: MonitoringResult | null
+  monitoring: null
 ): string {
   const date = new Date().toLocaleDateString("ar-SA", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
   
@@ -143,14 +125,6 @@ function formatDailySummary(
   msg += `   • حملات مرسلة: ${notifications.campaignsSent}\n`;
   msg += `   • إشعارات مسلمة: ${notifications.notificationsDelivered}\n`;
   msg += `   • فاشلة: ${notifications.notificationsFailed}\n\n`;
-  
-  if (monitoring) {
-    msg += `🏥 *صحة الخدمات:*\n`;
-    for (const check of monitoring.checks) {
-      const emoji = check.status === "healthy" ? "🟢" : check.status === "degraded" ? "🟡" : "🔴";
-      msg += `   ${emoji} ${check.name}\n`;
-    }
-  }
   
   return msg;
 }

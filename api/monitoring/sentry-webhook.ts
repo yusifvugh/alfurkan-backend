@@ -1,10 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
-import { getEnv } from "../../lib/utils/env";
-import { kv } from "@vercel/kv";
+import { getEnv } from "../../lib/utils/env.js";
 
 const supabase = createClient(
   getEnv("SUPABASE_URL"),
-  getEnv("SENTRY_SERVICE_ROLE_KEY")
+  getEnv("SUPABASE_SERVICE_ROLE_KEY")
 );
 
 // التحقق من توقيع Sentry
@@ -13,9 +12,6 @@ function verifySentrySignature(signature: string | null, payload: string): boole
   const secret = getEnv("SENTRY_WEBHOOK_SECRET");
   if (!secret) return false;
   
-  // Sentry يستخدم HMAC-SHA256
-  // في البيئة الحقيقية، استخدم crypto.createHmac
-  // هنا تحقق مبسط
   return signature.startsWith("sha256=");
 }
 
@@ -65,7 +61,6 @@ export default async function handler(req: Request): Promise<Response> {
 
     const payload: SentryAlertPayload = JSON.parse(payloadText);
     
-    // معالجة التنبيه
     if (payload.action === "created" && payload.data.issue) {
       await processNewIssueAlert(payload.data.issue);
     } else if (payload.action === "triggered" && payload.data.alert_rule) {
@@ -90,31 +85,15 @@ export default async function handler(req: Request): Promise<Response> {
 async function processNewIssueAlert(issue: SentryAlertPayload["data"]["issue"]) {
   if (!issue) return;
   
-  // التحقق من القواعد
   const shouldAlert = issue.level === "fatal" || 
                       (issue.userCount && issue.userCount > 100) ||
                       (issue.count && issue.count > 50);
   
   if (!shouldAlert) return;
   
-  // تجميع الأخطاء المتشابهة
-  const groupKey = `alert_group:${issue.title.slice(0, 50)}`;
-  const lastSent = await kv.get<number>(groupKey);
-  const now = Date.now();
-  
-  if (lastSent && now - lastSent < 10 * 60 * 1000) {
-    // تم إرسال تنبيه مشابه خلال 10 دقائق - تجاهل
-    console.log("Skipping duplicate alert for:", issue.title);
-    return;
-  }
-  
-  await kv.set(groupKey, now, { ex: 3600 });
-  
-  // إرسال تنبيه تيليجرام
   const message = formatIssueAlert(issue);
   await sendTelegramAlert(message, issue.id);
   
-  // تسجيل في قاعدة البيانات
   await logAlert({
     type: "new_issue",
     issue_id: issue.id,
@@ -136,7 +115,6 @@ async function processMetricAlert(alertRule: SentryAlertPayload["data"]["alert_r
     `*الوقت:* ${new Date().toLocaleString("ar-SA")}`;
   
   await sendTelegramAlert(message, alertRule.id);
-  await kv.set(`alert_metric:${alertRule.id}`, Date.now(), { ex: 3600 });
 }
 
 async function processIssueResolved(issue: SentryAlertPayload["data"]["issue"]) {

@@ -1,7 +1,7 @@
 import { Context, InlineKeyboard } from "grammy";
-import { MyContext } from "../bot";
+import { MyContext } from "../bot.js";
 import { createClient } from "@supabase/supabase-js";
-import { getEnv } from "../../lib/utils/env";
+import { getEnv } from "../../../lib/utils/env.js";
 
 const supabase = createClient(
   getEnv("SUPABASE_URL"),
@@ -84,7 +84,7 @@ async function updateSystemConfig(updates: Partial<SystemConfig>) {
   const updatesArray = Object.entries(updates).map(([key, value]) => ({
     key,
     value,
-    updated_by: 0, // سيتم تعيينه من سياق الاستدعاء
+    updated_by: 0,
     updated_at: new Date().toISOString(),
   }));
   
