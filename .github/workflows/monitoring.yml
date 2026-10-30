@@ -1,0 +1,88 @@
+name: External Monitoring
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # كل 5 دقائق
+  workflow_dispatch:  # تشغيل يدوي
+
+jobs:
+  health-check:
+    name: Health Check (5min)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check API Health
+        id: health
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -f \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.API_BASE_URL }}/api/monitoring/health" || true)
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+          echo "http_code=$http_code" >> $GITHUB_OUTPUT
+          echo "body=$body" >> $GITHUB_OUTPUT
+          
+      - name: Parse Health Results
+        if: steps.health.outputs.http_code == '200'
+        run: |
+          echo "${{ steps.health.outputs.body }}" | jq -r '.checks[] | "\(.name): \(.status) \(.latencyMs // "")ms \(.details)"'
+          
+      - name: Check for Down Services
+        if: steps.health.outputs.http_code == '200'
+        id: down_check
+        run: |
+          down_count=$(echo "${{ steps.health.outputs.body }}" | jq '[.checks[] | select(.status == "down")] | length')
+          echo "down_count=$down_count" >> $GITHUB_OUTPUT
+          if [ "$down_count" -gt 0 ]; then
+            echo "${{ steps.health.outputs.body }}" | jq -r '.checks[] | select(.status == "down") | "\(.name): \(.details)"' > down_services.txt
+          fi
+          
+      - name: Send Critical Alert (Telegram)
+        if: steps.health.outputs.http_code != '200' || steps.down_check.outputs.down_count > 0
+        run: |
+          if [ "${{ steps.health.outputs.http_code }}" != "200" ]; then
+            message="🔴 *تنبيه حرج: فشل فحص الصحة*\n\n❌ HTTP: ${{ steps.health.outputs.http_code }}\n⏰ $(date -u +'%Y-%m-%d %H:%M:%S') UTC"
+          else
+            down_services=$(cat down_services.txt)
+            message="🔴 *تنبيه حرج: خدمات معطلة*\n\n$down_services\n\n⏰ $(date -u +'%Y-%m-%d %H:%M:%S') UTC"
+          fi
+          
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\": \"${{ secrets.ADMIN_CHAT_ID }}\", \"text\": \"$message\", \"parse_mode\": \"Markdown\"}"
+
+  # Deep health check every 15 minutes (more comprehensive)
+  deep-health-check:
+    name: Deep Health Check (15min)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *'
+    steps:
+      - name: Deep Health Check
+        run: |
+          curl -f -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.API_BASE_URL }}/api/monitoring/external-ping"
+
+  # Daily summary at 9 AM UTC (6 AM Cairo)
+  daily-summary:
+    name: Daily Summary
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' && github.event.schedule == '0 9 * * *'
+    steps:
+      - name: Trigger Daily Summary
+        run: |
+          curl -f -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.API_BASE_URL }}/api/monitoring/daily-summary"
+
+  # Weekly summary Monday 9 AM UTC (Monday 6 AM Cairo)
+  weekly-summary:
+    name: Weekly Summary
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' && github.event.schedule == '0 9 * * 1'
+    steps:
+      - name: Trigger Weekly Summary
+        run: |
+          curl -f -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.API_BASE_URL }}/api/monitoring/weekly-summary"
