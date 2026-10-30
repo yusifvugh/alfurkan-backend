@@ -1,0 +1,43 @@
+{
+  "functions": {
+    "api/**/*.ts": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/monitoring/external-ping",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/monitoring/daily-summary",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/monitoring/weekly-summary",
+      "schedule": "0 9 * * 1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/telegram/webhook",
+      "destination": "/api/telegram/webhook.ts"
+    },
+    {
+      "source": "/api/telegram/set-webhook",
+      "destination": "/api/telegram/set-webhook.ts"
+    }
+  ]
+}

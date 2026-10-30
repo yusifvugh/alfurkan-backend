@@ -1,0 +1,198 @@
+-- ============================================
+-- Alfurkan Backend Database Migrations
+-- شغل هذا في Supabase Dashboard → SQL Editor
+-- ============================================
+
+-- 1. إعلانات التطبيق
+CREATE TABLE IF NOT EXISTS announcements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('general', 'update', 'maintenance', 'feature')),
+  target_version TEXT,
+  mandatory BOOLEAN DEFAULT FALSE,
+  priority TEXT NOT NULL CHECK (priority IN ('high', 'medium', 'low')),
+  download_links JSONB DEFAULT '{}',
+  is_published BOOLEAN DEFAULT FALSE,
+  published_at TIMESTAMPTZ,
+  scheduled_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,
+  created_by BIGINT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. حملات الإشعارات
+CREATE TABLE IF NOT EXISTS notification_campaigns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  target_audience TEXT NOT NULL CHECK (target_audience IN ('all', 'version', 'region', 'custom')),
+  target_filter JSONB DEFAULT '{}',
+  related_announcement_id UUID REFERENCES announcements(id),
+  scheduled_at TIMESTAMPTZ,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'scheduled', 'sending', 'sent', 'failed', 'cancelled')),
+  stats JSONB DEFAULT '{"sent":0,"failed":0,"opened":0}',
+  sent_at TIMESTAMPTZ,
+  created_by BIGINT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. إعدادات النظام
+CREATE TABLE IF NOT EXISTS system_config (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  description TEXT,
+  is_secret BOOLEAN DEFAULT FALSE,
+  updated_by BIGINT,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. سجل التدقيق (Audit Log)
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id BIGSERIAL PRIMARY KEY,
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT,
+  user_id BIGINT NOT NULL,
+  metadata JSONB DEFAULT '{}',
+  ip_address INET,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. مستخدمو التطبيق (للإشعارات المستهدفة)
+CREATE TABLE IF NOT EXISTS app_users (
+  device_id UUID PRIMARY KEY,
+  fcm_token TEXT,
+  app_version TEXT,
+  build_number INT,
+  platform TEXT,
+  country CHAR(2),
+  language TEXT,
+  last_active_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. سجل التنبيهات
+CREATE TABLE IF NOT EXISTS alert_logs (
+  id BIGSERIAL PRIMARY KEY,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  severity TEXT NOT NULL CHECK (severity IN ('critical', 'warning', 'info')),
+  timestamp TIMESTAMPTZ NOT NULL,
+  metadata JSONB DEFAULT '{}'
+);
+
+-- فهارس للأداء
+CREATE INDEX IF NOT EXISTS idx_announcements_published ON announcements(is_published, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_announcements_scheduled ON announcements(scheduled_at) WHERE scheduled_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_campaigns_status ON notification_campaigns(status, scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_app_users_version ON app_users(app_version);
+CREATE INDEX IF NOT EXISTS idx_app_users_country ON app_users(country);
+CREATE INDEX IF NOT EXISTS idx_alert_logs_timestamp ON alert_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_alert_logs_type ON alert_logs(type, severity);
+
+-- تفعيل RLS (Row Level Security)
+ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notification_campaigns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE system_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE alert_logs ENABLE ROW LEVEL SECURITY;
+
+-- سياسات: قراءة عامة للإعلانات المنشورة
+CREATE POLICY "Public read published announcements" ON announcements
+  FOR SELECT USING (
+    is_published = true 
+    AND (expires_at IS NULL OR expires_at > NOW())
+    AND (scheduled_at IS NULL OR scheduled_at <= NOW())
+  );
+
+-- سياسات: Service Role كامل الصلاحيات (للباك إند)
+CREATE POLICY "Service role full access" ON announcements
+  FOR ALL USING (auth.role() = 'service_role');
+
+CREATE POLICY "Service role full access" ON notification_campaigns
+  FOR ALL USING (auth.role() = 'service_role');
+
+CREATE POLICY "Service role full access" ON system_config
+  FOR ALL USING (auth.role() = 'service_role');
+
+CREATE POLICY "Service role full access" ON audit_logs
+  FOR ALL USING (auth.role() = 'service_role');
+
+CREATE POLICY "Service role full access" ON app_users
+  FOR ALL USING (auth.role() = 'service_role');
+
+CREATE POLICY "Service role full access" ON alert_logs
+  FOR ALL USING (auth.role() = 'service_role');
+
+-- إعدادات افتراضية للنظام
+INSERT INTO system_config (key, value, description, is_secret) VALUES
+('maintenance_mode', 'false', 'وضع الصيانة', false),
+('maintenance_message', '"التطبيق تحت الصيانة، سيعمل قريباً"', 'رسالة الصيانة', false),
+('force_update_version', 'null', 'إصدار التحديث الإلزامي', false),
+('min_supported_version', '"1.0.0"', 'أدنى إصدار مدعوم', false),
+('announcements_enabled', 'true', 'تفعيل الإعلانات', false),
+('max_announcement_priority', '"high"', 'أقصى أولوية إعلان', false),
+('auto_archive_days', '30', 'أيام الأرشفة التلقائية', false),
+('notifications_enabled', 'true', 'تفعيل الإشعارات', false),
+('max_daily_notifications_per_user', '5', 'حد الإشعارات اليومية لكل مستخدم', false),
+('quiet_hours_enabled', 'true', 'ساعات الهدوء', false),
+('quiet_hours_start', '"22:00"', 'بداية الهدوء', false),
+('quiet_hours_end', '"08:00"', 'نهاية الهدوء', false),
+('alerting_enabled', 'true', 'تفعيل التنبيهات', false),
+('crash_alert_threshold', '10', 'عتبة تنبيه الانهيارات/ساعة', false),
+('performance_alert_threshold_ms', '3000', 'عتبة تنبيه الأداء (ملي ثانية)', false),
+('error_rate_alert_threshold', '5', 'عتبة معدل الأخطاء %', false),
+('fcm_enabled', 'true', 'تفعيل FCM', false),
+('sentry_enabled', 'true', 'تفعيل Sentry', false),
+('supabase_enabled', 'true', 'تفعيل Supabase', false),
+('latest_version', '"1.0.0"', 'أحدث إصدار', false),
+('latest_build_number', '1', 'أحدث رقم بناء', false),
+('release_notes_url', '"https://github.com/yusifvugh/al-furkan/releases"', 'رابط ملاحظات الإصدار', false)
+ON CONFLICT (key) DO NOTHING;
+
+-- دالة لتحديث updated_at تلقائياً
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- تريجر لتحديث updated_at
+DROP TRIGGER IF EXISTS update_announcements_updated_at ON announcements;
+CREATE TRIGGER update_announcements_updated_at
+  BEFORE UPDATE ON announcements
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_system_config_updated_at ON system_config;
+CREATE TRIGGER update_system_config_updated_at
+  BEFORE UPDATE ON system_config
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- عرض للإعلانات النشطة (للاستخدام في التطبيق)
+CREATE OR REPLACE VIEW active_announcements AS
+SELECT id, title, body, type, target_version, mandatory, priority, download_links, published_at
+FROM announcements
+WHERE is_published = true
+  AND (expires_at IS NULL OR expires_at > NOW())
+  AND (scheduled_at IS NULL OR scheduled_at <= NOW())
+ORDER BY priority DESC, published_at DESC;
+
+-- دالة لتنظيف الإعلانات منتهية الصلاحية
+CREATE OR REPLACE FUNCTION cleanup_expired_announcements()
+RETURNS void AS $$
+BEGIN
+  UPDATE announcements
+  SET is_published = false
+  WHERE is_published = true
+    AND expires_at IS NOT NULL
+    AND expires_at <= NOW();
+END;
+$$ language 'plpgsql';
