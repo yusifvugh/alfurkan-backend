@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS announcements (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- الترقية التلقائية للجداول المنشأة مسبقاً
+-- الترقية التلقائية للجداول المنشأة مسبقاً (إضافة الأعمدة الجديدة إن لم تكن موجودة)
 ALTER TABLE announcements ADD COLUMN IF NOT EXISTS image_url TEXT;
 ALTER TABLE announcements ADD COLUMN IF NOT EXISTS action_url TEXT;
 ALTER TABLE announcements ADD COLUMN IF NOT EXISTS action_title TEXT;
@@ -71,18 +71,29 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. مستخدمو التطبيق (للإشعارات المستهدفة)
+-- 5. مستخدمو التطبيق (للإشعارات المستهدفة وحفظ توكنات الأجهزة)
 CREATE TABLE IF NOT EXISTS app_users (
-  device_id UUID PRIMARY KEY,
+  device_id TEXT PRIMARY KEY,
   fcm_token TEXT,
   app_version TEXT,
   build_number INT,
   platform TEXT,
-  country CHAR(2),
+  country TEXT,
   language TEXT,
   last_active_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ترقية نوع device_id ليكون TEXT لدعم التوافق مع معرّفات الأجهزة المختلفة
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'app_users' AND column_name = 'device_id' AND data_type = 'uuid'
+  ) THEN
+    ALTER TABLE app_users ALTER COLUMN device_id TYPE TEXT;
+  END IF;
+END $$;
 
 -- 6. سجل التنبيهات
 CREATE TABLE IF NOT EXISTS alert_logs (
@@ -113,7 +124,8 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE alert_logs ENABLE ROW LEVEL SECURITY;
 
--- سياسات: قراءة عامة للإعلانات المنشورة
+-- سياسات الأمان: قراءة عامة للإعلانات المنشورة
+DROP POLICY IF EXISTS "Public read published announcements" ON announcements;
 CREATE POLICY "Public read published announcements" ON announcements
   FOR SELECT USING (
     is_published = true 
@@ -121,22 +133,28 @@ CREATE POLICY "Public read published announcements" ON announcements
     AND (scheduled_at IS NULL OR scheduled_at <= NOW())
   );
 
--- سياسات: Service Role كامل الصلاحيات (للباك إند)
+-- سياسات الأمان: Service Role كامل الصلاحيات (للباك إند وبوت تيليجرام)
+DROP POLICY IF EXISTS "Service role full access" ON announcements;
 CREATE POLICY "Service role full access" ON announcements
   FOR ALL USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Service role full access" ON notification_campaigns;
 CREATE POLICY "Service role full access" ON notification_campaigns
   FOR ALL USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Service role full access" ON system_config;
 CREATE POLICY "Service role full access" ON system_config
   FOR ALL USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Service role full access" ON audit_logs;
 CREATE POLICY "Service role full access" ON audit_logs
   FOR ALL USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Service role full access" ON app_users;
 CREATE POLICY "Service role full access" ON app_users
   FOR ALL USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Service role full access" ON alert_logs;
 CREATE POLICY "Service role full access" ON alert_logs
   FOR ALL USING (auth.role() = 'service_role');
 
@@ -188,7 +206,20 @@ CREATE TRIGGER update_system_config_updated_at
 
 -- عرض للإعلانات النشطة (للاستخدام في التطبيق)
 CREATE OR REPLACE VIEW active_announcements AS
-SELECT id, title, body, type, target_version, mandatory, priority, download_links, published_at
+SELECT 
+  id, 
+  title, 
+  body, 
+  type, 
+  target_version, 
+  mandatory, 
+  priority, 
+  download_links, 
+  image_url, 
+  action_url, 
+  action_title, 
+  internal_route, 
+  published_at
 FROM announcements
 WHERE is_published = true
   AND (expires_at IS NULL OR expires_at > NOW())
