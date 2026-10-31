@@ -94,6 +94,12 @@ export default async function handler(req: any, res?: any) {
       return send(200, { ok: true, note: "empty update" });
     }
 
+    // grammY requires bot.init() in serverless before handleUpdate()
+    // init() is idempotent — safe to call every invocation
+    if (!bot.isInited()) {
+      await bot.init();
+    }
+
     await bot.handleUpdate(update);
     return send(200, { ok: true });
   } catch (error) {
