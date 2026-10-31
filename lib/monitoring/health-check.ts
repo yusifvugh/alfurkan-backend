@@ -151,5 +151,5 @@ async function checkService(
 }
 
 async function getFCMAccessToken(): Promise<string> {
-  return process.env.FCM_ACCESS_TOKEN ?? "";
+  return getEnv("FCM_ACCESS_TOKEN");
 }

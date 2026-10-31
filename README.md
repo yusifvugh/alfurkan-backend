@@ -18,7 +18,7 @@ alfurkan-backend/
 │   │       └── monitoring.ts
 │   ├── monitoring/
 │   │   ├── health.ts           # Health check endpoint
-│   │   ├── external-ping.ts    # مراقب خارجي (Cron كل 5 دقائق)
+│   │   ├── external-ping.ts    # مراقب خارجي (GitHub Actions كل 5 دقائق)
 │   │   ├── daily-summary.ts    # ملخص يومي (Cron 9 صباحاً)
 │   │   ├── weekly-summary.ts   # ملخص أسبوعي (Cron الاثنين 9 صباحاً)
 │   │   └── sentry-webhook.ts   # استقبال تنبيهات Sentry
@@ -57,36 +57,36 @@ alfurkan-backend/
 
 ```env
 # Telegram Bot
-TELEGRAM_BOT_TOKEN=9258735923:AAGV71Xr-3Q0Sqg6k-SFlTHh0wvqsSPEUDM
-TELEGRAM_WEBHOOK_SECRET=alfurkan-webhook-secret-2024-change-this
-AUTHORIZED_ADMIN_IDS=8925964971
-ADMIN_CHAT_ID=8925964971
+TELEGRAM_BOT_TOKEN=your-bot-token-from-botfather
+TELEGRAM_WEBHOOK_SECRET=generate-random-secret-32-chars-min
+AUTHORIZED_ADMIN_IDS=your-telegram-user-id
+ADMIN_CHAT_ID=your-telegram-user-id
 
 # Supabase
-SUPABASE_URL=https://ogvczssmmduobxkigtlx.supabase.co
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key-from-supabase
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-from-supabase
 
 # Sentry
-SENTRY_DSN=https://xxx@sentry.io/xxx
-SENTRY_ORG=your-org
+SENTRY_DSN=https://your-dsn@sentry.io/your-project-id
+SENTRY_ORG=your-org-slug
 SENTRY_PROJECT=alfurkan
-SENTRY_AUTH_TOKEN=sntryu_xxx
-SENTRY_WEBHOOK_SECRET=your-webhook-secret
+SENTRY_AUTH_TOKEN=your-auth-token-from-sentry
+SENTRY_WEBHOOK_SECRET=your-webhook-secret-from-sentry
 
 # FCM
-FCM_SERVER_KEY=your-fcm-server-key
+FCM_SERVER_KEY=your-fcm-server-key-from-firebase
 FCM_PROJECT_ID=your-firebase-project-id
 
 # App
 APP_VERSION=1.0.0
 APP_BUILD_NUMBER=1
 NODE_ENV=production
-API_BASE_URL=https://alfurkan-backend.vercel.app
+API_BASE_URL=https://your-project.vercel.app
 
 # Encryption
 ENCRYPTION_KEY=generate-with-openssl-rand-base64-32
-WEBHOOK_SECRET_TOKEN=another-random-secret
+WEBHOOK_SECRET_TOKEN=another-random-secret-for-verification
 
 # Cron Secret (للحماية)
 CRON_SECRET=generate-random-secret
@@ -95,19 +95,19 @@ CRON_SECRET=generate-random-secret
 ### 4. تعيين الويب هوك
 بعد النشر، شغل:
 ```bash
-curl -X POST "https://api.telegram.org/bot9258735923:AAGV71Xr-3Q0Sqg6k-SFlTHh0wvqsSPEUDM/setWebhook" \
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://alfurkan-backend.vercel.app/api/telegram/webhook", "secret_token": "alfurkan-webhook-secret-2024-change-this", "allowed_updates": ["message", "callback_query"], "drop_pending_updates": true}'
+  -d '{"url": "https://your-project.vercel.app/api/telegram/webhook", "secret_token": "<YOUR_WEBHOOK_SECRET>", "allowed_updates": ["message", "callback_query"], "drop_pending_updates": true}'
 ```
 
 أو استخدم endpoint الإعداد:
 ```bash
-curl -X POST "https://alfurkan-backend.vercel.app/api/telegram/set-webhook"
+curl -X POST "https://your-project.vercel.app/api/telegram/set-webhook"
 ```
 
 ### 5. التحقق
 ```bash
-curl "https://api.telegram.org/bot9258735923:AAGV71Xr-3Q0Sqg6k-SFlTHh0wvqsSPEUDM/getWebhookInfo"
+curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo"
 ```
 
 ## 🗄️ قاعدة البيانات (Supabase)
@@ -131,7 +131,7 @@ curl "https://api.telegram.org/bot9258735923:AAGV71Xr-3Q0Sqg6k-SFlTHh0wvqsSPEUDM
 
 ## 📊 المراقبة
 
-### Health Checks (كل 5 دقائق)
+### Health Checks (GitHub Actions كل 5 دقائق، Vercel Cron يومي/أسبوعي)
 - API Health
 - Database (Supabase)
 - FCM

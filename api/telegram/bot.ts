@@ -33,7 +33,6 @@ function getEnv(key: string): string {
 }
 
 const BOT_TOKEN = getEnv("TELEGRAM_BOT_TOKEN");
-const WEBHOOK_SECRET = getEnv("TELEGRAM_WEBHOOK_SECRET");
 const AUTHORIZED_ADMINS = getEnv("AUTHORIZED_ADMIN_IDS").split(",").map(s => s.trim());
 const ADMIN_CHAT_ID = getEnv("ADMIN_CHAT_ID");
 const APP_VERSION = process.env.APP_VERSION ?? "1.0.0";
@@ -54,19 +53,7 @@ bot.use(conversations());
 // Security Middleware
 // ============================================
 
-// 1. Webhook Secret Validation
-bot.use(async (ctx, next) => {
-  const secret = (ctx as any).webhookReplyEnvelope?.secret_token 
-    ?? (ctx.update as any).secret_token
-    ?? "";
-  if (secret !== WEBHOOK_SECRET) {
-    console.warn("Invalid webhook secret token", { secret: secret?.slice(0, 8) });
-    return ctx.reply("❌ Unauthorized webhook");
-  }
-  return next();
-});
-
-// 2. Admin Authorization
+// 1. Admin Authorization
 bot.use(async (ctx, next) => {
   const userId = ctx.from?.id.toString();
   if (!userId || !AUTHORIZED_ADMINS.includes(userId)) {
@@ -76,7 +63,7 @@ bot.use(async (ctx, next) => {
   return next();
 });
 
-// 3. Rate Limiting (simplified - no KV dependency)
+// 2. Rate Limiting (simplified - no KV dependency)
 bot.use(async (ctx, next) => {
   const userId = ctx.from?.id.toString();
   if (!userId) return next();
@@ -84,7 +71,7 @@ bot.use(async (ctx, next) => {
   return next();
 });
 
-// 4. Idempotency for dangerous operations (simplified)
+// 3. Idempotency for dangerous operations (simplified)
 bot.use(async (ctx, next) => {
   if (ctx.callbackQuery?.data?.startsWith("danger:")) {
     // In production, use Redis/Upstash for distributed idempotency

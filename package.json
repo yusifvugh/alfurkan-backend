@@ -5,7 +5,7 @@
   "main": "api/telegram/webhook.ts",
   "scripts": {
     "dev": "vercel dev",
-    "build": "tsc",
+    "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ext .ts"
   },
