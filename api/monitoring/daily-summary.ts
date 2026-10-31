@@ -1,10 +1,25 @@
 import { getEnv } from "../../lib/utils/env.js";
 
-export default async function handler(req: Request): Promise<Response> {
-  const authHeader = req.headers.get("authorization");
-  const cronSecret = getEnv("CRON_SECRET");
+export default async function handler(req: any, res?: any) {
+  const isWeb = typeof req.headers?.get === "function";
+
+  const send = (code: number, body: any) => {
+    if (res && typeof res.status === "function") {
+      return res.status(code).json(body);
+    }
+    return new Response(JSON.stringify(body), {
+      status: code,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  const authHeader = isWeb
+    ? req.headers.get("authorization")
+    : (req.headers?.authorization || req.headers?.Authorization);
+
+  const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return new Response("Unauthorized", { status: 401 });
+    return send(401, { error: "Unauthorized" });
   }
 
   try {
@@ -13,18 +28,15 @@ export default async function handler(req: Request): Promise<Response> {
     
     const message = formatDailySummary(sentryStats, notificationStats, null);
     
-    await sendTelegramMessage(getEnv("ADMIN_CHAT_ID"), message);
+    const adminChat = process.env.ADMIN_CHAT_ID;
+    if (adminChat) {
+      await sendTelegramMessage(adminChat, message);
+    }
     
-    return new Response(JSON.stringify({ ok: true, sent: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return send(200, { ok: true, sent: true });
   } catch (error) {
     console.error("Daily summary error:", error);
-    return new Response(JSON.stringify({ ok: false, error: String(error) }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return send(500, { ok: false, error: String(error) });
   }
 }
 
@@ -47,25 +59,33 @@ interface NotificationStats {
 
 async function fetchSentryStats(): Promise<SentryStats> {
   try {
-    const org = getEnv("SENTRY_ORG");
-    const token = getEnv("SENTRY_AUTH_TOKEN");
-    const project = getEnv("SENTRY_PROJECT");
+    const org = process.env.SENTRY_ORG;
+    const token = process.env.SENTRY_AUTH_TOKEN;
+    const project = process.env.SENTRY_PROJECT;
+    if (!org || !token || !project) {
+      return {
+        totalErrors: 0,
+        fatalErrors: 0,
+        affectedUsers: 0,
+        newIssues: 0,
+        resolvedIssues: 0,
+        avgResponseTime: 0,
+        errorRate: 0,
+        uptime: 100,
+      };
+    }
     
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const url = `https://sentry.io/api/0/projects/${org}/${project}/stats/?since=${since}&resolution=1h&stat=received&stat=rejected&stat=blacklisted&stat=generated`;
     
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(5000),
     });
     
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     
-    interface SentryStatsResponse {
-      received?: number;
-    }
-    
-    const data = await response.json() as SentryStatsResponse[];
+    const data = await response.json() as { received?: number }[];
     
     return {
       totalErrors: data[0]?.received ?? 0,
@@ -78,7 +98,6 @@ async function fetchSentryStats(): Promise<SentryStats> {
       uptime: 100,
     };
   } catch (e) {
-    console.warn("Failed to fetch Sentry stats:", e);
     return {
       totalErrors: 0,
       fatalErrors: 0,
@@ -130,14 +149,17 @@ function formatDailySummary(
 }
 
 async function sendTelegramMessage(chatId: string, text: string) {
-  const botToken = getEnv("TELEGRAM_BOT_TOKEN");
-  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: "Markdown",
-    }),
-  });
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "Markdown",
+      }),
+    });
+  } catch (_) {}
 }

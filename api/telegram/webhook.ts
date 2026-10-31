@@ -1,17 +1,65 @@
 import { bot } from "../../lib/telegram/bot.js";
 import type { Update } from "grammy/types";
 
+async function parseBody(req: any): Promise<any> {
+  // If already parsed
+  if (req.body) {
+    if (Buffer.isBuffer(req.body)) {
+      const str = req.body.toString("utf8");
+      return str ? JSON.parse(str) : null;
+    }
+    if (typeof req.body === "string") {
+      return req.body ? JSON.parse(req.body) : null;
+    }
+    if (typeof req.body === "object") {
+      return req.body;
+    }
+  }
+
+  // If Web standard Request
+  if (typeof req.json === "function") {
+    try {
+      return await req.json();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // If unconsumed Node IncomingMessage stream
+  return new Promise((resolve) => {
+    let raw = "";
+    req.on("data", (chunk: any) => {
+      raw += chunk;
+    });
+    req.on("end", () => {
+      try {
+        resolve(raw ? JSON.parse(raw) : null);
+      } catch (e) {
+        resolve(null);
+      }
+    });
+    req.on("error", () => resolve(null));
+  });
+}
+
 // Vercel Serverless Function Handler (Supports both Node HTTP and Web Fetch standards)
 export default async function handler(req: any, res?: any) {
   const isWeb = typeof req.headers?.get === "function";
   const method = req.method;
 
+  const send = (code: number, body: any) => {
+    if (res && typeof res.status === "function") {
+      return res.status(code).json(body);
+    }
+    return new Response(JSON.stringify(body), {
+      status: code,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
   // 1. Only accept POST requests from Telegram
   if (method !== "POST") {
-    if (res && typeof res.status === "function") {
-      return res.status(405).json({ error: "Method Not Allowed" });
-    }
-    return new Response("Method Not Allowed", { status: 405 });
+    return send(405, { error: "Method Not Allowed" });
   }
 
   // 2. Validate Telegram Webhook Secret Token from HTTP header if configured
@@ -25,65 +73,32 @@ export default async function handler(req: any, res?: any) {
 
   if (expectedSecret) {
     if (!secretHeader || secretHeader !== expectedSecret) {
-      console.warn("Invalid or missing webhook secret token. Expected:", expectedSecret?.slice(0, 4) + "...", "Received:", secretHeader?.slice(0, 4) + "...");
-      if (res && typeof res.status === "function") {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-      return new Response("Unauthorized", { status: 401 });
+      console.warn("Unauthorized webhook secret. Ignoring unauthorized request.");
+      return send(401, { error: "Unauthorized" });
     }
   }
 
-  // 3. Parse and validate JSON body
-  let update: Update;
+  // 3. Parse JSON update body
+  let update: Update | null = null;
   try {
-    if (isWeb) {
-      update = (await req.json()) as Update;
-    } else if (Buffer.isBuffer(req.body)) {
-      update = JSON.parse(req.body.toString("utf8")) as Update;
-    } else if (typeof req.body === "string") {
-      update = JSON.parse(req.body) as Update;
-    } else {
-      update = req.body as Update;
-    }
+    update = await parseBody(req);
   } catch (error) {
     console.error("Invalid JSON body:", error);
-    if (res && typeof res.status === "function") {
-      return res.status(400).json({ error: "Invalid JSON" });
-    }
-    return new Response("Bad Request: Invalid JSON", { status: 400 });
+    return send(400, { error: "Invalid JSON" });
   }
 
   // 4. Process update through grammY bot
   try {
     if (!update || typeof update !== "object") {
-      console.warn("No valid update payload received in webhook");
-      if (res && typeof res.status === "function") {
-        return res.status(200).json({ ok: true, note: "empty update" });
-      }
-      return new Response(JSON.stringify({ ok: true, note: "empty update" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      console.warn("Received empty or invalid update payload");
+      return send(200, { ok: true, note: "empty update" });
     }
 
     await bot.handleUpdate(update);
-
-    if (res && typeof res.status === "function") {
-      return res.status(200).json({ ok: true });
-    }
-    return new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return send(200, { ok: true });
   } catch (error) {
     console.error("Webhook processing error:", error);
     // Respond with 200 to Telegram so it does not retry failed updates repeatedly
-    if (res && typeof res.status === "function") {
-      return res.status(200).json({ ok: true, handled_error: String(error) });
-    }
-    return new Response(JSON.stringify({ ok: true, handled_error: String(error) }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return send(200, { ok: true, handled_error: String(error) });
   }
 }

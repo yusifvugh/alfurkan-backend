@@ -62,9 +62,14 @@ bot.use(async (ctx, next) => {
   const userId = ctx.from?.id.toString();
   const username = ctx.from?.username;
 
-  const isAuthorized = AUTHORIZED_ADMINS.length === 0 || 
-    (userId && AUTHORIZED_ADMINS.includes(userId)) ||
-    (username && AUTHORIZED_ADMINS.includes(username));
+  // Filter out any default placeholder strings
+  const validAdmins = AUTHORIZED_ADMINS.filter(
+    id => id && id !== "your-telegram-user-id" && id !== "PLACEHOLDER"
+  );
+
+  const isAuthorized = validAdmins.length === 0 || 
+    (userId && validAdmins.includes(userId)) ||
+    (username && validAdmins.includes(username));
 
   if (!isAuthorized) {
     await ctx.reply(
@@ -82,20 +87,33 @@ bot.use(async (ctx, next) => {
 });
 
 // ============================================
+// Helper with Timeout
+// ============================================
+
+function withTimeout<T>(promise: PromiseLike<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
+// ============================================
 // Live Dashboard Builder
 // ============================================
 
 export async function buildDashboardData() {
+  const emptyRes = { count: 0, data: null, error: null };
+
   const [
     usersRes,
     activeAnnRes,
     campaignsRes,
     configRes,
   ] = await Promise.allSettled([
-    supabase.from("app_users").select("device_id", { count: "exact", head: true }),
-    supabase.from("announcements").select("id", { count: "exact", head: true }).eq("is_published", true),
-    supabase.from("notification_campaigns").select("id", { count: "exact", head: true }),
-    supabase.from("system_config").select("key, value").in("key", ["maintenance_mode", "min_supported_version", "latest_version"]),
+    withTimeout(supabase.from("app_users").select("device_id", { count: "exact", head: true }), 2500, emptyRes as any),
+    withTimeout(supabase.from("announcements").select("id", { count: "exact", head: true }).eq("is_published", true), 2500, emptyRes as any),
+    withTimeout(supabase.from("notification_campaigns").select("id", { count: "exact", head: true }), 2500, emptyRes as any),
+    withTimeout(supabase.from("system_config").select("key, value").in("key", ["maintenance_mode", "min_supported_version", "latest_version"]), 2500, emptyRes as any),
   ]);
 
   const userCount = usersRes.status === "fulfilled" && usersRes.value.count !== null ? usersRes.value.count : 0;
@@ -152,8 +170,26 @@ export async function buildDashboardData() {
 // ============================================
 
 bot.command("start", async (ctx) => {
-  const { text, keyboard } = await buildDashboardData();
-  await ctx.reply(text, { reply_markup: keyboard, parse_mode: "HTML" });
+  try {
+    const { text, keyboard } = await buildDashboardData();
+    await ctx.reply(text, { reply_markup: keyboard, parse_mode: "HTML" });
+  } catch (err) {
+    console.error("Start command fallback:", err);
+    await ctx.reply(
+      "🌟 <b>مركز تحكم الفُرقان</b>\n\nأهلاً بك في لوحة الإدارة.\nاختر من الأقسام التالية:",
+      {
+        reply_markup: new InlineKeyboard()
+          .text("📢 إدارة الإعلانات", "menu:announcements")
+          .text("🔔 مركز الإشعارات", "menu:notifications")
+          .row()
+          .text("⚙️ إعدادات النظام", "menu:settings")
+          .text("📊 مركز المراقبة", "menu:monitoring")
+          .row()
+          .text("🔄 تحديث", "menu:main"),
+        parse_mode: "HTML",
+      }
+    );
+  }
 });
 
 bot.command("help", async (ctx) => {
@@ -209,10 +245,11 @@ bot.command("cancel", async (ctx) => {
 // ============================================
 
 async function handleUsersDashboard(ctx: MyContext) {
+  const emptyRes = { count: 0, data: null };
   const [totalRes, platformsRes, versionsRes] = await Promise.allSettled([
-    supabase.from("app_users").select("device_id", { count: "exact", head: true }),
-    supabase.from("app_users").select("platform"),
-    supabase.from("app_users").select("app_version"),
+    withTimeout(supabase.from("app_users").select("device_id", { count: "exact", head: true }), 2500, emptyRes as any),
+    withTimeout(supabase.from("app_users").select("platform"), 2500, emptyRes as any),
+    withTimeout(supabase.from("app_users").select("app_version"), 2500, emptyRes as any),
   ]);
 
   const total = totalRes.status === "fulfilled" && totalRes.value.count !== null ? totalRes.value.count : 0;

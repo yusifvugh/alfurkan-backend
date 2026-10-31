@@ -2,11 +2,26 @@ import { supabase } from "../../lib/supabase/client.js";
 import { sendAnnouncementPush } from "../../lib/fcm/index.js";
 import { getEnv } from "../../lib/utils/env.js";
 
-export default async function handler(req: Request): Promise<Response> {
-  const authHeader = req.headers.get("authorization");
+export default async function handler(req: any, res?: any) {
+  const isWeb = typeof req.headers?.get === "function";
+
+  const send = (code: number, body: any) => {
+    if (res && typeof res.status === "function") {
+      return res.status(code).json(body);
+    }
+    return new Response(JSON.stringify(body), {
+      status: code,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  const authHeader = isWeb
+    ? req.headers.get("authorization")
+    : (req.headers?.authorization || req.headers?.Authorization);
+
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return new Response("Unauthorized", { status: 401 });
+    return send(401, { error: "Unauthorized" });
   }
 
   try {
@@ -27,7 +42,6 @@ export default async function handler(req: Request): Promise<Response> {
 
     if (pending && pending.length > 0) {
       for (const ann of pending) {
-        // تحديث حالة النشر
         const { error: updateErr } = await supabase
           .from("announcements")
           .update({
@@ -53,27 +67,15 @@ export default async function handler(req: Request): Promise<Response> {
       }
     }
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        checked_at: now,
-        published_count: publishedList.length,
-        published_titles: publishedList,
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    return send(200, {
+      ok: true,
+      checked_at: now,
+      published_count: publishedList.length,
+      published_titles: publishedList,
+    });
   } catch (err: any) {
     console.error("Scheduled announcements error:", err);
-    return new Response(
-      JSON.stringify({ ok: false, error: err?.message || String(err) }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    return send(500, { ok: false, error: err?.message || String(err) });
   }
 }
 
