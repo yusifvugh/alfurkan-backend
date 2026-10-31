@@ -1,8 +1,8 @@
 import { Context, InlineKeyboard } from "grammy";
 import { MyContext, MyConversation } from "../bot.js";
-import { formatAnnouncementPreview } from "../../../lib/telegram/formatters/announcements.js";
-import { supabase } from "../../../lib/supabase/client.js";
-import { sendAnnouncementPush } from "../../../lib/fcm/index.js";
+import { formatAnnouncementPreview } from "../../telegram/formatters/announcements.js";
+import { supabase } from "../../supabase/client.js";
+import { sendAnnouncementPush } from "../../fcm/index.js";
 
 // ============================================
 // Main Menu

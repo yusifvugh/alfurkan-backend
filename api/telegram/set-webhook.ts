@@ -1,4 +1,4 @@
-import { bot } from "./bot.js";
+import { bot } from "../../lib/telegram/bot.js";
 
 // Vercel Serverless Function Handler (Supports both Node HTTP and Web Fetch standards)
 export default async function handler(req: any, res?: any) {

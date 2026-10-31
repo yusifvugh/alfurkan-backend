@@ -1,7 +1,7 @@
 import { Context, InlineKeyboard } from "grammy";
 import { MyContext } from "../bot.js";
 import { createClient } from "@supabase/supabase-js";
-import { getEnv } from "../../../lib/utils/env.js";
+import { getEnv } from "../../utils/env.js";
 
 const supabase = createClient(
   getEnv("SUPABASE_URL"),

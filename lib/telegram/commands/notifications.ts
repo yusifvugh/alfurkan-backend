@@ -1,8 +1,8 @@
 import { Context, InlineKeyboard } from "grammy";
 import { MyContext, MyConversation } from "../bot.js";
-import { formatNotificationPreview } from "../../../lib/telegram/formatters/announcements.js";
-import { supabase } from "../../../lib/supabase/client.js";
-import { sendFCMBatch } from "../../../lib/fcm/index.js";
+import { formatNotificationPreview } from "../../telegram/formatters/announcements.js";
+import { supabase } from "../../supabase/client.js";
+import { sendFCMBatch } from "../../fcm/index.js";
 
 interface NotificationCampaign {
   id: string;

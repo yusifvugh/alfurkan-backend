@@ -9,10 +9,6 @@
     {
       "path": "/api/monitoring/daily-summary",
       "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/monitoring/weekly-summary",
-      "schedule": "0 9 * * 1"
     }
   ],
   "headers": [

@@ -1,4 +1,4 @@
-import { bot } from "./bot.js";
+import { bot } from "../../lib/telegram/bot.js";
 import type { Update } from "grammy/types";
 
 // Vercel Serverless Function Handler (Supports both Node HTTP and Web Fetch standards)

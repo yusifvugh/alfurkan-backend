@@ -1,5 +1,5 @@
 import { Context, NextFunction } from "grammy";
-import { MyContext } from "../../../api/telegram/bot.js";
+import { MyContext } from "../bot.js";
 import { getEnv } from "../../utils/env.js";
 
 // ============================================

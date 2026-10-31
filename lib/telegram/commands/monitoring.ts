@@ -1,8 +1,8 @@
 import { Context, InlineKeyboard } from "grammy";
 import { MyContext } from "../bot.js";
-import { getEnv } from "../../../lib/utils/env.js";
-import { healthCheck, getSystemStatus, performHealthChecks } from "../../../lib/monitoring/health-check.js";
-import { fetchSentryIssues, fetchSentryIssue, updateSentryIssueStatus } from "../../../lib/sentry/alerts.js";
+import { getEnv } from "../../utils/env.js";
+import { healthCheck, getSystemStatus, performHealthChecks } from "../../monitoring/health-check.js";
+import { fetchSentryIssues, fetchSentryIssue, updateSentryIssueStatus } from "../../sentry/alerts.js";
 
 interface SentryIssue {
   id: string;
