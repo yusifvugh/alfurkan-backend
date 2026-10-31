@@ -2,6 +2,7 @@ import { Context, InlineKeyboard } from "grammy";
 import { MyContext, MyConversation } from "../bot.js";
 import { formatNotificationPreview } from "../../../lib/telegram/formatters/announcements.js";
 import { supabase } from "../../../lib/supabase/client.js";
+import { sendFCMBatch } from "../../../lib/fcm/index.js";
 
 interface NotificationCampaign {
   id: string;
@@ -194,49 +195,7 @@ async function executeCampaign(campaignId: string) {
   }).eq("id", campaignId);
 }
 
-async function sendFCMBatch(tokens: string[], message: { title: string; body: string; data: Record<string, string> }): Promise<{ sent: number; failed: number; opened: number }> {
-  if (tokens.length === 0) return { sent: 0, failed: 0, opened: 0 };
-  
-  const serverKey = process.env.FCM_SERVER_KEY;
-  if (!serverKey) {
-    console.error("FCM_SERVER_KEY not configured");
-    return { sent: 0, failed: tokens.length, opened: 0 };
-  }
-  
-  let sent = 0;
-  let failed = 0;
-  
-  // إرسال دفعات من 500
-  for (let i = 0; i < tokens.length; i += 500) {
-    const batch = tokens.slice(i, i + 500);
-    try {
-      const response = await fetch("https://fcm.googleapis.com/fcm/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `key=${serverKey}`,
-        },
-        body: JSON.stringify({
-          registration_ids: batch,
-          notification: {
-            title: message.title,
-            body: message.body,
-          },
-          data: message.data,
-        }),
-      });
-      
-      const result = await response.json() as { success?: number; failure?: number };
-      sent += result.success ?? 0;
-      failed += result.failure ?? 0;
-    } catch (e) {
-      failed += batch.length;
-      console.error("FCM batch error:", e);
-    }
-  }
-  
-  return { sent, failed, opened: 0 };
-}
+
 
 // ============================================
 // List Campaigns

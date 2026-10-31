@@ -2,6 +2,7 @@ import { Context, InlineKeyboard } from "grammy";
 import { MyContext, MyConversation } from "../bot.js";
 import { formatAnnouncementPreview } from "../../../lib/telegram/formatters/announcements.js";
 import { supabase } from "../../../lib/supabase/client.js";
+import { sendAnnouncementPush } from "../../../lib/fcm/index.js";
 
 // ============================================
 // Main Menu
@@ -220,21 +221,23 @@ export async function viewAnnouncement(ctx: MyContext, announcementId: string) {
   const keyboard = new InlineKeyboard();
   
   if (!data.is_published && !data.scheduled_at) {
-    keyboard.text("🚀 نشر الآن", `ann:publish:${data.id}`).row();
+    keyboard.text("🚀 نشر الآن وإرسال إشعار", `ann:publish:${data.id}`).row();
   }
   if (data.is_published) {
-    keyboard.text("🛑 إيقاف", `ann:unpublish:${data.id}`).row();
+    keyboard.text("🛑 إيقاف النشر", `ann:unpublish:${data.id}`)
+      .text("🔔 إعادة إرسال الإشعار", `ann:resend_push:${data.id}`)
+      .row();
   }
-  keyboard.text("📝 تعديل", `ann:edit:${data.id}`)
-    .text("🗑️ أرشفة", `ann:archive:${data.id}`)
+  keyboard.text("📦 أرشفة", `ann:archive:${data.id}`)
+    .text("🗑️ حذف نهائي", `ann:delete_prompt:${data.id}`)
     .row();
-  keyboard.text("🔙 العودة", "ann:list");
+  keyboard.text("🔙 العودة للقائمة", "ann:list");
   
   await ctx.editMessageText(msg, { parse_mode: "Markdown", reply_markup: keyboard });
 }
 
 // ============================================
-// Publish/Unpublish
+// Publish/Unpublish & Delete
 // ============================================
 
 export async function publishAnnouncement(ctx: MyContext, announcementId: string) {
@@ -247,17 +250,18 @@ export async function publishAnnouncement(ctx: MyContext, announcementId: string
   
   if (error) throw error;
   
-  // إرسال إشعار Push للمستخدمين
-  await sendAnnouncementPush(data);
+  // إرسال إشعار Push للمستخدمين عبر FCM
+  const pushResult = await sendAnnouncementPush(data);
   
   await supabase.from("audit_logs").insert({
     action: "announcement_published",
     entity_type: "announcement",
     entity_id: announcementId,
     user_id: ctx.from!.id,
+    metadata: { push_sent: pushResult.sent, push_failed: pushResult.failed },
   });
   
-  await ctx.answerCallbackQuery("✅ تم نشر الإعلان وإرسال الإشعارات");
+  await ctx.answerCallbackQuery(`✅ تم النشر (أُرسل لـ ${pushResult.sent} جهاز)`);
   await viewAnnouncement(ctx, announcementId);
 }
 
@@ -278,20 +282,8 @@ export async function unpublishAnnouncement(ctx: MyContext, announcementId: stri
   await viewAnnouncement(ctx, announcementId);
 }
 
-// ============================================
-// Send Push Notification for Announcement
-// ============================================
-
-async function sendAnnouncementPush(announcement: any) {
-  console.log("Sending push for announcement:", announcement.id);
-}
-
-// ============================================
-// Schedule Announcement Publish
-// ============================================
-
 async function scheduleAnnouncementPublish(announcementId: string, scheduledAt: Date) {
-  console.log("Scheduling announcement publish:", announcementId, "at", scheduledAt);
+  console.log(`Announcement ${announcementId} scheduled for ${scheduledAt.toISOString()}`);
 }
 
 // ============================================
@@ -310,9 +302,39 @@ export function registerAnnouncementCallbacks(bot: any) {
   bot.callbackQuery(/ann:view:(.+)/, (ctx: any) => viewAnnouncement(ctx, ctx.match[1]));
   bot.callbackQuery(/ann:publish:(.+)/, (ctx: any) => publishAnnouncement(ctx, ctx.match[1]));
   bot.callbackQuery(/ann:unpublish:(.+)/, (ctx: any) => unpublishAnnouncement(ctx, ctx.match[1]));
-  bot.callbackQuery(/ann:edit:(.+)/, async (ctx: any) => {
-    await ctx.answerCallbackQuery("قيد التطوير");
+
+  bot.callbackQuery(/ann:resend_push:(.+)/, async (ctx: any) => {
+    const id = ctx.match[1];
+    const { data: ann } = await supabase.from("announcements").select("*").eq("id", id).single();
+    if (!ann) return ctx.answerCallbackQuery("❌ الإعلان غير موجود");
+    const result = await sendAnnouncementPush(ann);
+    await ctx.answerCallbackQuery(`✅ تم إرسال الإشعار لـ ${result.sent} جهاز`);
   });
+
+  bot.callbackQuery(/ann:delete_prompt:(.+)/, async (ctx: any) => {
+    const id = ctx.match[1];
+    const keyboard = new InlineKeyboard()
+      .text("⚠️ نعم، احذف نهائياً", `ann:confirm_delete:${id}`)
+      .text("❌ تراجع", `ann:view:${id}`);
+    await ctx.editMessageText("⚠️ *تأكيد الحذف*\n\nهل أنت متأكد من حذف هذا الإعلان نهائياً؟ لا يمكن التراجع عن هذا الإجراء.", {
+      parse_mode: "Markdown",
+      reply_markup: keyboard,
+    });
+  });
+
+  bot.callbackQuery(/ann:confirm_delete:(.+)/, async (ctx: any) => {
+    const id = ctx.match[1];
+    await supabase.from("announcements").delete().eq("id", id);
+    await supabase.from("audit_logs").insert({
+      action: "announcement_deleted",
+      entity_type: "announcement",
+      entity_id: id,
+      user_id: ctx.from!.id,
+    });
+    await ctx.answerCallbackQuery("🗑️ تم حذف الإعلان نهائياً");
+    await listAnnouncements(ctx, "published");
+  });
+
   bot.callbackQuery(/ann:archive:(.+)/, async (ctx: any) => {
     await supabase.from("announcements").update({ is_published: false }).eq("id", ctx.match[1]);
     await ctx.answerCallbackQuery("✅ تم أرشفة الإعلان");

@@ -13,6 +13,10 @@ CREATE TABLE IF NOT EXISTS announcements (
   mandatory BOOLEAN DEFAULT FALSE,
   priority TEXT NOT NULL CHECK (priority IN ('high', 'medium', 'low')),
   download_links JSONB DEFAULT '{}',
+  image_url TEXT,
+  action_url TEXT,
+  action_title TEXT,
+  internal_route TEXT,
   is_published BOOLEAN DEFAULT FALSE,
   published_at TIMESTAMPTZ,
   scheduled_at TIMESTAMPTZ,
@@ -21,6 +25,12 @@ CREATE TABLE IF NOT EXISTS announcements (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- الترقية التلقائية للجداول المنشأة مسبقاً
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS action_url TEXT;
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS action_title TEXT;
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS internal_route TEXT;
 
 -- 2. حملات الإشعارات
 CREATE TABLE IF NOT EXISTS notification_campaigns (
