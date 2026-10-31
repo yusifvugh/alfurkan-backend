@@ -118,12 +118,13 @@ async function checkService(
   name: string,
   checkFn: () => Promise<Omit<ServiceCheck, "name">>
 ): Promise<ServiceCheck> {
-  const timeoutPromise = new Promise<Omit<ServiceCheck, "name">>((resolve) =>
-    setTimeout(
+  let timer: any;
+  const timeoutPromise = new Promise<Omit<ServiceCheck, "name">>((resolve) => {
+    timer = setTimeout(
       () => resolve({ status: "healthy", latencyMs: 1500, details: "Fast-check OK" }),
       2000
-    )
-  );
+    );
+  });
 
   try {
     const result = await Promise.race([checkFn(), timeoutPromise]);
@@ -135,5 +136,7 @@ async function checkService(
       latencyMs: null,
       details: String(error),
     };
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
