@@ -125,19 +125,19 @@ export async function createNotificationConversation(
   
   if (confirmCtx.callbackQuery.data === "confirm:send") {
     // إنشاء الحملة
-    const { data: campaign } = await supabase.from("notification_campaigns").insert({
+    const { data: campaign, error: insertError } = await supabase.from("notification_campaigns").insert({
       title, body, target_audience: audience,
       target_filter: targetFilter,
       related_announcement_id: relatedAnnouncementId,
       scheduled_at: scheduledAt?.toISOString(),
       status: scheduledAt ? "scheduled" : "sending",
     }).select().single();
-    
-    if (!scheduledAt) {
-      // إرسال فوري - في الخلفية
-      executeCampaign(campaign.id);
+
+    if (insertError || !campaign) {
+      await ctx.reply(`❌ خطأ في إنشاء الحملة: ${insertError?.message ?? "خطأ غير معروف"}`);
+      return;
     }
-    
+
     await supabase.from("audit_logs").insert({
       action: "notification_campaign_created",
       entity_type: "notification_campaign",
@@ -145,16 +145,29 @@ export async function createNotificationConversation(
       user_id: ctx.from!.id,
       metadata: { title, audience, scheduled: !!scheduledAt },
     });
-    
-    await ctx.reply(`✅ ${scheduledAt ? "تمت جدولة" : "جاري إرسال"} الحملة!\nالمعرف: \`${campaign.id}\``, { parse_mode: "Markdown" });
+
+    if (!scheduledAt) {
+      // إرسال فوري — MUST await في serverless (لا background tasks)
+      await ctx.reply(`⏳ جاري إرسال الحملة... انتظر لحظة.`);
+      const result = await executeCampaign(campaign.id);
+      await ctx.reply(
+        `✅ تم إرسال الحملة!\n` +
+        `📤 مُرسَل: *${result.sent}* جهاز\n` +
+        `❌ فاشل: *${result.failed}* جهاز\n` +
+        `🆔 المعرف: \`${campaign.id}\``,
+        { parse_mode: "Markdown" }
+      );
+    } else {
+      await ctx.reply(`✅ تمت جدولة الحملة!\nالمعرف: \`${campaign.id}\``, { parse_mode: "Markdown" });
+    }
   }
 }
 
 // ============================================
-// Execute Campaign (Background)
+// Execute Campaign (Synchronous — Serverless Safe)
 // ============================================
 
-async function executeCampaign(campaignId: string) {
+async function executeCampaign(campaignId: string): Promise<{ sent: number; failed: number }> {
   const { data: campaign } = await supabase
     .from("notification_campaigns")
     .update({ status: "sending" })
@@ -162,7 +175,7 @@ async function executeCampaign(campaignId: string) {
     .select()
     .single();
   
-  if (!campaign) return;
+  if (!campaign) return { sent: 0, failed: 0 };
   
   // بناء استعلام المستخدمين المستهدفين
   let query = supabase.from("app_users").select("fcm_token, device_id");
@@ -174,9 +187,18 @@ async function executeCampaign(campaignId: string) {
   }
   
   const { data: users } = await query;
-  const tokens = users?.map(u => u.fcm_token).filter(Boolean) ?? [];
+  const tokens = users?.map((u: any) => u.fcm_token).filter(Boolean) ?? [];
+
+  if (tokens.length === 0) {
+    await supabase.from("notification_campaigns").update({
+      status: "sent",
+      stats: { sent: 0, failed: 0, opened: 0 },
+      sent_at: new Date().toISOString(),
+    }).eq("id", campaignId);
+    return { sent: 0, failed: 0 };
+  }
   
-  // إرسال عبر FCM (batches من 500)
+  // إرسال عبر FCM
   const results = await sendFCMBatch(tokens, {
     title: campaign.title,
     body: campaign.body,
@@ -189,10 +211,12 @@ async function executeCampaign(campaignId: string) {
   
   // تحديث الإحصائيات
   await supabase.from("notification_campaigns").update({
-    status: "sent",
+    status: results.failed === tokens.length ? "failed" : "sent",
     stats: results,
     sent_at: new Date().toISOString(),
   }).eq("id", campaignId);
+
+  return { sent: results.sent, failed: results.failed };
 }
 
 
@@ -311,8 +335,12 @@ export function registerNotificationCallbacks(bot: any) {
   bot.callbackQuery(/notif:view:(.+)/, (ctx: any) => viewCampaign(ctx, ctx.match[1]));
   bot.callbackQuery(/notif:sendnow:(.+)/, async (ctx: any) => {
     await supabase.from("notification_campaigns").update({ status: "sending" }).eq("id", ctx.match[1]);
-    await executeCampaign(ctx.match[1]);
-    await ctx.answerCallbackQuery("✅ جاري الإرسال");
+    await ctx.answerCallbackQuery("⏳ جاري الإرسال...");
+    const result = await executeCampaign(ctx.match[1]);
+    await ctx.reply(
+      `✅ تم إرسال الحملة!\n📤 مُرسَل: *${result.sent}* | ❌ فاشل: *${result.failed}*`,
+      { parse_mode: "Markdown" }
+    );
     await viewCampaign(ctx, ctx.match[1]);
   });
   bot.callbackQuery(/notif:cancel:(.+)/, async (ctx: any) => {

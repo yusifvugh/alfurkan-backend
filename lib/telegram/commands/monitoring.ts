@@ -309,32 +309,40 @@ export async function performanceReportCommand(ctx: MyContext) {
   try {
     const result = await performHealthChecks();
     
-    let msg = "📊 *تقارير الأداء*\n\n";
-    
-    msg += `⏱️ *آخر فحص:* ${new Date(result.timestamp).toLocaleString("ar-SA")}\n\n`;
-    
+    let msg = "📊 *تقارير الأداء والخدمات*\n\n";
+    msg += `⏱️ *وقت الفحص:* ${new Date(result.timestamp).toLocaleString("ar-SA")}\n\n`;
+    msg += `🔧 *حالة الخدمات:*\n`;
+
     for (const check of result.checks) {
-      const emoji = check.status === "healthy" ? "🟢" : 
+      const emoji = check.status === "healthy" ? "🟢" :
                     check.status === "degraded" ? "🟡" : "🔴";
-      msg += `${emoji} *${check.name}*: `;
-      if (check.latencyMs) {
-        msg += `${check.latencyMs}ms`;
-      } else {
-        msg += "غير متاح";
+      msg += `${emoji} *${check.name}*`;
+      if (check.latencyMs !== null && check.latencyMs !== undefined && check.latencyMs > 0) {
+        msg += ` — ${check.latencyMs}ms`;
       }
-      msg += `\n`;
+      msg += `\n   └ ${check.details}\n`;
     }
     
-    msg += `\n📈 *إحصائيات Sentry (24 ساعة):*\n`;
-    msg += `   • متوسط زمن الاستجابة: غير متاح\n`;
-    msg += `   • معدل الأخطاء: غير متاح\n`;
-    msg += `   • Uptime: غير متاح\n`;
+    msg += `\n📈 *ملاحظات:*\n`;
+    msg += `   • Sentry وFCM خدمات خارجية — تتطلب ضبط متغيرات البيئة في Vercel\n`;
+    msg += `   • إحصائيات الأداء التفصيلية تتطلب ربط Sentry\n`;
     
     const keyboard = new InlineKeyboard()
       .text("🔄 تحديث", "mon:performance")
+      .text("🏥 فحص الخدمات", "mon:health")
+      .row()
       .text("🔙 العودة", "menu:monitoring");
     
-    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: keyboard });
+    if (ctx.callbackQuery) {
+      try {
+        await ctx.editMessageText(msg, { parse_mode: "Markdown", reply_markup: keyboard });
+      } catch {
+        await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: keyboard });
+      }
+      await ctx.answerCallbackQuery();
+    } else {
+      await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: keyboard });
+    }
   } catch (error) {
     console.error("Performance report error:", error);
     await ctx.reply("❌ تعذر جلب تقرير الأداء");

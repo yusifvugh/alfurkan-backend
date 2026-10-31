@@ -241,6 +241,8 @@ export async function viewAnnouncement(ctx: MyContext, announcementId: string) {
 // ============================================
 
 export async function publishAnnouncement(ctx: MyContext, announcementId: string) {
+  await ctx.answerCallbackQuery("⏳ جاري النشر وإرسال الإشعارات...");
+
   const { data, error } = await supabase
     .from("announcements")
     .update({ is_published: true, published_at: new Date().toISOString() })
@@ -248,7 +250,10 @@ export async function publishAnnouncement(ctx: MyContext, announcementId: string
     .select()
     .single();
   
-  if (error) throw error;
+  if (error || !data) {
+    await ctx.reply(`❌ فشل النشر: ${error?.message ?? "خطأ غير معروف"}`);
+    return;
+  }
   
   // إرسال إشعار Push للمستخدمين عبر FCM
   const pushResult = await sendAnnouncementPush(data);
@@ -260,8 +265,14 @@ export async function publishAnnouncement(ctx: MyContext, announcementId: string
     user_id: ctx.from!.id,
     metadata: { push_sent: pushResult.sent, push_failed: pushResult.failed },
   });
-  
-  await ctx.answerCallbackQuery(`✅ تم النشر (أُرسل لـ ${pushResult.sent} جهاز)`);
+
+  const pushMsg = pushResult.sent > 0
+    ? `✅ أُرسل الإشعار لـ *${pushResult.sent}* جهاز` + (pushResult.failed > 0 ? ` (فاشل: ${pushResult.failed})` : "")
+    : pushResult.failed > 0
+      ? `⚠️ FCM غير مُضبوط — لم يُرسل لأي جهاز (تحقق من FCM_SERVER_KEY في Vercel)`
+      : `ℹ️ لا توجد أجهزة مسجلة بعد`;
+
+  await ctx.reply(pushMsg, { parse_mode: "Markdown" });
   await viewAnnouncement(ctx, announcementId);
 }
 

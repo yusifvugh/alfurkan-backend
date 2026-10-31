@@ -13,30 +13,20 @@ export interface FCMResult {
   opened: number;
 }
 
-/**
- * Send FCM push notification to a batch of device tokens (in chunks of 500)
- */
-export async function sendFCMBatch(
+// ============================================
+// FCM Legacy API (Server Key)
+// ============================================
+
+async function sendFCMLegacyBatch(
   tokens: string[],
-  payload: FCMPayload
+  payload: FCMPayload,
+  serverKey: string
 ): Promise<FCMResult> {
-  const validTokens = Array.from(new Set(tokens.filter(Boolean)));
-  if (validTokens.length === 0) {
-    return { sent: 0, failed: 0, opened: 0 };
-  }
-
-  const serverKey = process.env.FCM_SERVER_KEY;
-  if (!serverKey) {
-    console.warn("FCM_SERVER_KEY is not configured in environment variables.");
-    return { sent: 0, failed: validTokens.length, opened: 0 };
-  }
-
   let sent = 0;
   let failed = 0;
 
-  // Process in chunks of 500 (FCM registration_ids limit)
-  for (let i = 0; i < validTokens.length; i += 500) {
-    const chunk = validTokens.slice(i, i + 500);
+  for (let i = 0; i < tokens.length; i += 500) {
+    const chunk = tokens.slice(i, i + 500);
     try {
       const response = await fetch("https://fcm.googleapis.com/fcm/send", {
         method: "POST",
@@ -58,7 +48,8 @@ export async function sendFCMBatch(
       });
 
       if (!response.ok) {
-        console.error("FCM API error response:", response.status, await response.text());
+        const text = await response.text();
+        console.error("FCM Legacy API error:", response.status, text);
         failed += chunk.length;
         continue;
       }
@@ -70,7 +61,7 @@ export async function sendFCMBatch(
       sent += result.success ?? 0;
       failed += result.failure ?? 0;
     } catch (err) {
-      console.error("FCM chunk send error:", err);
+      console.error("FCM Legacy chunk error:", err);
       failed += chunk.length;
     }
   }
@@ -78,9 +69,179 @@ export async function sendFCMBatch(
   return { sent, failed, opened: 0 };
 }
 
-/**
- * Send push notification for an announcement to all eligible devices
- */
+// ============================================
+// FCM HTTP v1 API (Service Account / OAuth2)
+// Uses Google's token endpoint directly — no extra SDK needed
+// ============================================
+
+async function getOAuthAccessToken(serviceAccountJson: string): Promise<string | null> {
+  try {
+    const sa = JSON.parse(serviceAccountJson);
+    const now = Math.floor(Date.now() / 1000);
+
+    // Build JWT header + payload
+    const header = { alg: "RS256", typ: "JWT" };
+    const claim = {
+      iss: sa.client_email,
+      scope: "https://www.googleapis.com/auth/firebase.messaging",
+      aud: "https://oauth2.googleapis.com/token",
+      exp: now + 3600,
+      iat: now,
+    };
+
+    const encode = (obj: object) =>
+      Buffer.from(JSON.stringify(obj)).toString("base64url");
+
+    const headerB64 = encode(header);
+    const claimB64 = encode(claim);
+    const unsigned = `${headerB64}.${claimB64}`;
+
+    // Sign with RSA private key using Web Crypto
+    const pemKey = sa.private_key as string;
+    const pemBody = pemKey
+      .replace(/-----BEGIN PRIVATE KEY-----/, "")
+      .replace(/-----END PRIVATE KEY-----/, "")
+      .replace(/\s/g, "");
+
+    const keyBuffer = Buffer.from(pemBody, "base64");
+
+    const cryptoKey = await crypto.subtle.importKey(
+      "pkcs8",
+      keyBuffer,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+
+    const signatureBuffer = await crypto.subtle.sign(
+      "RSASSA-PKCS1-v1_5",
+      cryptoKey,
+      Buffer.from(unsigned)
+    );
+
+    const signature = Buffer.from(signatureBuffer).toString("base64url");
+    const jwt = `${unsigned}.${signature}`;
+
+    // Exchange JWT for access token
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion: jwt,
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      console.error("OAuth2 token error:", await tokenRes.text());
+      return null;
+    }
+
+    const tokenData = (await tokenRes.json()) as { access_token?: string };
+    return tokenData.access_token ?? null;
+  } catch (err) {
+    console.error("getOAuthAccessToken error:", err);
+    return null;
+  }
+}
+
+async function sendFCMv1Batch(
+  tokens: string[],
+  payload: FCMPayload,
+  projectId: string,
+  serviceAccountJson: string
+): Promise<FCMResult> {
+  const accessToken = await getOAuthAccessToken(serviceAccountJson);
+  if (!accessToken) {
+    console.error("FCM v1: could not obtain OAuth2 access token");
+    return { sent: 0, failed: tokens.length, opened: 0 };
+  }
+
+  let sent = 0;
+  let failed = 0;
+  const url = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
+
+  // FCM v1 sends one message per token (no batching endpoint in v1)
+  // Use Promise.allSettled in groups of 100 for speed
+  const CONCURRENCY = 100;
+  for (let i = 0; i < tokens.length; i += CONCURRENCY) {
+    const chunk = tokens.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(
+      chunk.map((token) =>
+        fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            message: {
+              token,
+              notification: {
+                title: payload.title,
+                body: payload.body,
+                ...(payload.imageUrl ? { image: payload.imageUrl } : {}),
+              },
+              data: payload.data ?? {},
+              android: { priority: "high" },
+              apns: {
+                payload: { aps: { sound: "default" } },
+              },
+            },
+          }),
+        }).then((r) => r.ok)
+      )
+    );
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value) sent++;
+      else failed++;
+    }
+  }
+
+  return { sent, failed, opened: 0 };
+}
+
+// ============================================
+// Main Send Function — auto-detects config
+// ============================================
+
+export async function sendFCMBatch(
+  tokens: string[],
+  payload: FCMPayload
+): Promise<FCMResult> {
+  const validTokens = Array.from(new Set(tokens.filter(Boolean)));
+  if (validTokens.length === 0) {
+    return { sent: 0, failed: 0, opened: 0 };
+  }
+
+  const serverKey = process.env.FCM_SERVER_KEY?.trim();
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
+  const projectId = (
+    process.env.FCM_PROJECT_ID || process.env.FIREBASE_PROJECT_ID
+  )?.trim();
+
+  // Prefer HTTP v1 (modern, recommended)
+  if (serviceAccountJson && projectId) {
+    console.log(`FCM v1: sending to ${validTokens.length} tokens`);
+    return sendFCMv1Batch(validTokens, payload, projectId, serviceAccountJson);
+  }
+
+  // Fallback to Legacy API
+  if (serverKey) {
+    console.log(`FCM Legacy: sending to ${validTokens.length} tokens`);
+    return sendFCMLegacyBatch(validTokens, payload, serverKey);
+  }
+
+  console.warn(
+    "FCM not configured: set FCM_SERVER_KEY (Legacy) or FIREBASE_SERVICE_ACCOUNT_JSON + FCM_PROJECT_ID (v1)"
+  );
+  return { sent: 0, failed: validTokens.length, opened: 0 };
+}
+
+// ============================================
+// Send push for an announcement
+// ============================================
+
 export async function sendAnnouncementPush(announcement: {
   id: string;
   title: string;
@@ -124,7 +285,9 @@ export async function sendAnnouncementPush(announcement: {
       },
     });
 
-    console.log(`Push sent for announcement ${announcement.id}: ${result.sent} succeeded, ${result.failed} failed.`);
+    console.log(
+      `Push for announcement ${announcement.id}: ${result.sent} sent, ${result.failed} failed.`
+    );
     return result;
   } catch (err) {
     console.error("sendAnnouncementPush unhandled error:", err);

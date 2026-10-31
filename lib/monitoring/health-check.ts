@@ -61,48 +61,56 @@ export async function performHealthChecks(): Promise<HealthCheckResult> {
   
   // 3. FCM (Firebase Cloud Messaging)
   checks.push(await checkService("FCM", async () => {
-    const fcmStart = Date.now();
     const serverKey = process.env.FCM_SERVER_KEY;
-    const projectId = process.env.FCM_PROJECT_ID;
-    
+    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    const projectId = process.env.FCM_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+
     if (serverKey) {
       return {
         status: "healthy" as const,
-        details: "Server Key Configured",
-        latencyMs: Date.now() - fcmStart,
+        details: "✅ Server Key مُضبوط (Legacy API)",
+        latencyMs: 1,
       };
     }
-    
+    if (serviceAccount) {
+      return {
+        status: "healthy" as const,
+        details: `✅ Service Account مُضبوط (HTTP v1)${projectId ? ` | Project: ${projectId}` : ""}`,
+        latencyMs: 1,
+      };
+    }
     if (projectId) {
       return {
         status: "healthy" as const,
-        details: `Project ID ${projectId}`,
-        latencyMs: Date.now() - fcmStart,
+        details: `⚠️ Project ID فقط (${projectId}) — بدون مفاتيح`,
+        latencyMs: 1,
       };
     }
-    
     return {
-      status: "healthy" as const,
-      details: "FCM Standby",
-      latencyMs: 0,
+      status: "degraded" as const,
+      details: "❌ FCM غير مُضبوط — لا يوجد FCM_SERVER_KEY أو FIREBASE_SERVICE_ACCOUNT_JSON",
+      latencyMs: 1,
     };
   }));
-  
+
   // 4. Sentry
   checks.push(await checkService("Sentry", async () => {
     const org = process.env.SENTRY_ORG;
     const token = process.env.SENTRY_AUTH_TOKEN;
-    if (!org || !token) {
+    const project = process.env.SENTRY_PROJECT;
+    if (!org || !token || !project) {
+      const missing = [!org && "SENTRY_ORG", !token && "SENTRY_AUTH_TOKEN", !project && "SENTRY_PROJECT"]
+        .filter(Boolean).join(", ");
       return {
-        status: "healthy" as const,
-        details: "Sentry Standby (Optional)",
-        latencyMs: 0,
+        status: "degraded" as const,
+        details: `❌ Sentry غير مُضبوط — ناقص: ${missing}`,
+        latencyMs: 1,
       };
     }
     return {
       status: "healthy" as const,
-      details: "Sentry Active",
-      latencyMs: 0,
+      details: `✅ Sentry مُضبوط | Org: ${org} | Project: ${project}`,
+      latencyMs: 1,
     };
   }));
   
