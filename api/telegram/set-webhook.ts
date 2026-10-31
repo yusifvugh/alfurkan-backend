@@ -36,7 +36,8 @@ export default async function handler(req: any, res?: any) {
     }
 
     const WEBHOOK_URL = `${BASE_URL.replace(/\/$/, "")}/api/telegram/webhook`;
-    const SECRET = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+    const rawSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    const SECRET = rawSecret ? rawSecret.trim().replace(/^["']|["']$/g, "") : undefined;
 
     const webhookOptions: any = {
       allowed_updates: [

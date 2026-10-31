@@ -1,9 +1,9 @@
-export function getEnv(key: string): string {
+export function getEnv(key: string, defaultValue: string = ""): string {
   const value = process.env[key];
   if (!value) {
-    throw new Error(`Missing required environment variable: ${key}`);
+    return defaultValue;
   }
-  return value;
+  return value.trim().replace(/^["']|["']$/g, "");
 }
 
 export function getOptionalEnv(key: string, defaultValue: string): string {

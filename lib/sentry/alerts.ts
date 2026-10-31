@@ -56,14 +56,21 @@ interface SentryApiIssue {
 }
 
 export async function fetchSentryIssues(options: FetchIssuesOptions = {}): Promise<SentryIssue[]> {
+  const token = SENTRY_AUTH_TOKEN || process.env.SENTRY_AUTH_TOKEN;
+  const org = SENTRY_ORG || process.env.SENTRY_ORG;
+  const project = SENTRY_PROJECT || process.env.SENTRY_PROJECT;
+  if (!token || !org || !project) {
+    return [];
+  }
+
   const params = new URLSearchParams();
   params.set("limit", String(options.limit ?? 10));
   if (options.status) params.set("status", options.status);
   if (options.sort) params.set("sort", options.sort);
   if (options.level) params.set("level", options.level);
-  params.set("project", SENTRY_PROJECT);
+  params.set("project", project);
   
-  const url = `${SENTRY_API_BASE}/projects/${SENTRY_ORG}/${SENTRY_PROJECT}/issues/?${params}`;
+  const url = `${SENTRY_API_BASE}/projects/${org}/${project}/issues/?${params}`;
   
   try {
     const response = await fetch(url, {

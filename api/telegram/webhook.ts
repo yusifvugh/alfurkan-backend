@@ -15,16 +15,17 @@ export default async function handler(req: any, res?: any) {
   }
 
   // 2. Validate Telegram Webhook Secret Token from HTTP header if configured
-  const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+  const rawSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  const expectedSecret = rawSecret ? rawSecret.trim().replace(/^["']|["']$/g, "") : undefined;
   const secretHeader = (
     isWeb
       ? req.headers.get("x-telegram-bot-api-secret-token")
       : (req.headers?.["x-telegram-bot-api-secret-token"] || req.headers?.["X-Telegram-Bot-Api-Secret-Token"])
-  )?.trim();
+  )?.trim().replace(/^["']|["']$/g, "");
 
   if (expectedSecret) {
     if (!secretHeader || secretHeader !== expectedSecret) {
-      console.warn("Invalid or missing webhook secret token");
+      console.warn("Invalid or missing webhook secret token. Expected:", expectedSecret?.slice(0, 4) + "...", "Received:", secretHeader?.slice(0, 4) + "...");
       if (res && typeof res.status === "function") {
         return res.status(401).json({ error: "Unauthorized" });
       }
@@ -37,8 +38,12 @@ export default async function handler(req: any, res?: any) {
   try {
     if (isWeb) {
       update = (await req.json()) as Update;
+    } else if (Buffer.isBuffer(req.body)) {
+      update = JSON.parse(req.body.toString("utf8")) as Update;
+    } else if (typeof req.body === "string") {
+      update = JSON.parse(req.body) as Update;
     } else {
-      update = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as Update;
+      update = req.body as Update;
     }
   } catch (error) {
     console.error("Invalid JSON body:", error);
@@ -50,6 +55,17 @@ export default async function handler(req: any, res?: any) {
 
   // 4. Process update through grammY bot
   try {
+    if (!update || typeof update !== "object") {
+      console.warn("No valid update payload received in webhook");
+      if (res && typeof res.status === "function") {
+        return res.status(200).json({ ok: true, note: "empty update" });
+      }
+      return new Response(JSON.stringify({ ok: true, note: "empty update" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     await bot.handleUpdate(update);
 
     if (res && typeof res.status === "function") {

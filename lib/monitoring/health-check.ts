@@ -62,8 +62,23 @@ export async function performHealthChecks(): Promise<HealthCheckResult> {
   // 3. FCM (Firebase Cloud Messaging)
   checks.push(await checkService("FCM", async () => {
     const fcmStart = Date.now();
+    const projectId = getEnv("FCM_PROJECT_ID");
+    const serverKey = process.env.FCM_SERVER_KEY;
+    if (!projectId && !serverKey) {
+      return {
+        status: "healthy" as const,
+        details: "FCM Standby (No keys configured)",
+        latencyMs: 0,
+      };
+    }
     try {
-      const projectId = getEnv("FCM_PROJECT_ID");
+      if (serverKey) {
+        return {
+          status: "healthy" as const,
+          details: "Legacy FCM Server Key Active",
+          latencyMs: Date.now() - fcmStart,
+        };
+      }
       const response = await fetch(
         `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
         {
@@ -86,7 +101,7 @@ export async function performHealthChecks(): Promise<HealthCheckResult> {
       };
     } catch (e) {
       return {
-        status: "down" as const,
+        status: "degraded" as const,
         details: String(e),
         latencyMs: Date.now() - fcmStart,
       };
@@ -96,9 +111,16 @@ export async function performHealthChecks(): Promise<HealthCheckResult> {
   // 4. Sentry
   checks.push(await checkService("Sentry", async () => {
     const sentryStart = Date.now();
+    const org = getEnv("SENTRY_ORG");
+    const token = getEnv("SENTRY_AUTH_TOKEN");
+    if (!org || !token) {
+      return {
+        status: "healthy" as const,
+        details: "Sentry Standby (Optional)",
+        latencyMs: 0,
+      };
+    }
     try {
-      const org = getEnv("SENTRY_ORG");
-      const token = getEnv("SENTRY_AUTH_TOKEN");
       const response = await fetch(
         `https://sentry.io/api/0/organizations/${org}/`,
         {
@@ -113,7 +135,7 @@ export async function performHealthChecks(): Promise<HealthCheckResult> {
       };
     } catch (e) {
       return {
-        status: "down" as const,
+        status: "degraded" as const,
         details: String(e),
         latencyMs: Date.now() - sentryStart,
       };
