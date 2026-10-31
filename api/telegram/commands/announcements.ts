@@ -1,13 +1,7 @@
 import { Context, InlineKeyboard } from "grammy";
 import { MyContext, MyConversation } from "../bot.js";
-import { createClient } from "@supabase/supabase-js";
-import { getEnv } from "../../../lib/utils/env.js";
 import { formatAnnouncementPreview } from "../../../lib/telegram/formatters/announcements.js";
-
-const supabase = createClient(
-  getEnv("SUPABASE_URL"),
-  getEnv("SUPABASE_SERVICE_ROLE_KEY")
-);
+import { supabase } from "../../../lib/supabase/client.js";
 
 // ============================================
 // Main Menu

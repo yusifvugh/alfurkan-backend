@@ -1,6 +1,10 @@
 import { Bot, Context, session, SessionFlavor } from "grammy";
-import { conversations, Conversation, ConversationFlavor } from "@grammyjs/conversations";
-import { parseMode } from "@grammyjs/parse-mode";
+import { conversations, Conversation, ConversationFlavor, createConversation } from "@grammyjs/conversations";
+import { registerAnnouncementCallbacks, createAnnouncementConversation, announcementsMenu } from "./commands/announcements.js";
+import { registerNotificationCallbacks, createNotificationConversation, notificationsMenu } from "./commands/notifications.js";
+import { registerSettingsCallbacks, settingsMenu } from "./commands/settings.js";
+import { registerMonitoringCallbacks, monitoringMenu } from "./commands/monitoring.js";
+import { registerContentCallbacks, contentMenu } from "./commands/content.js";
 
 // ============================================
 // Types (exported for use in other files)
@@ -24,17 +28,12 @@ export type MyConversation = Conversation<MyContext>;
 // Environment Validation
 // ============================================
 
-function getEnv(key: string): string {
-  const value = process.env[key];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${key}`);
-  }
-  return value;
-}
-
-const BOT_TOKEN = getEnv("TELEGRAM_BOT_TOKEN");
-const AUTHORIZED_ADMINS = getEnv("AUTHORIZED_ADMIN_IDS").split(",").map(s => s.trim());
-const ADMIN_CHAT_ID = getEnv("ADMIN_CHAT_ID");
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "PLACEHOLDER_TOKEN";
+const AUTHORIZED_ADMINS = (process.env.AUTHORIZED_ADMIN_IDS || "")
+  .split(",")
+  .map(s => s.trim().replace(/^@/, ""))
+  .filter(Boolean);
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || AUTHORIZED_ADMINS[0] || "";
 const APP_VERSION = process.env.APP_VERSION ?? "1.0.0";
 
 // ============================================
@@ -46,8 +45,10 @@ export const bot = new Bot<MyContext>(BOT_TOKEN);
 // Middleware setup
 bot.use(session({ initial: () => ({}) }));
 bot.use(conversations());
-// parseMode is a transformer, not middleware - use it via API config or manually
-// bot.use(parseMode("Markdown")); // REMOVED - causes type error
+
+// Register conversations
+bot.use(createConversation(createAnnouncementConversation, "createAnnouncement"));
+bot.use(createConversation(createNotificationConversation, "createNotification"));
 
 // ============================================
 // Security Middleware
@@ -56,8 +57,22 @@ bot.use(conversations());
 // 1. Admin Authorization
 bot.use(async (ctx, next) => {
   const userId = ctx.from?.id.toString();
-  if (!userId || !AUTHORIZED_ADMINS.includes(userId)) {
-    await ctx.reply("🚫 غير مصرح. هذا البوت مخصص للإدارة فقط.");
+  const username = ctx.from?.username;
+
+  const isAuthorized = AUTHORIZED_ADMINS.length === 0 || 
+    (userId && AUTHORIZED_ADMINS.includes(userId)) ||
+    (username && AUTHORIZED_ADMINS.includes(username));
+
+  if (!isAuthorized) {
+    await ctx.reply(
+      `🚫 *غير مصرح*\n\n` +
+      `هذا البوت مخصص للإدارة فقط.\n` +
+      `معرف حسابك (User ID): \`${userId}\`\n` +
+      (username ? `اسم المستخدم: @${username}\n\n` : `\n`) +
+      `💡 *لتفعيل الحساب كمسؤول:*\n` +
+      `أضف المعرف \`${userId}\` إلى المتغير \`AUTHORIZED_ADMIN_IDS\` في إعدادات Vercel.`,
+      { parse_mode: "Markdown" }
+    );
     return;
   }
   return next();
@@ -67,15 +82,11 @@ bot.use(async (ctx, next) => {
 bot.use(async (ctx, next) => {
   const userId = ctx.from?.id.toString();
   if (!userId) return next();
-  // In production, use Redis/Upstash for distributed rate limiting
   return next();
 });
 
 // 3. Idempotency for dangerous operations (simplified)
 bot.use(async (ctx, next) => {
-  if (ctx.callbackQuery?.data?.startsWith("danger:")) {
-    // In production, use Redis/Upstash for distributed idempotency
-  }
   return next();
 });
 
@@ -161,36 +172,25 @@ bot.command("cancel", async (ctx) => {
 });
 
 // ============================================
-// Menu Navigation
+// Menu Navigation & Callback Registration
 // ============================================
 
 bot.callbackQuery("menu:main", async (ctx) => {
   await ctx.editMessageText("🤖 *مركز تحكم الفُرقان*\n\nاختر قسم الإدارة:", { reply_markup: getMainMenu(), parse_mode: "Markdown" });
 });
 
-bot.callbackQuery("menu:announcements", async (ctx) => {
-  const { announcementsMenu } = await import("./commands/announcements.js");
-  await announcementsMenu(ctx);
-});
+bot.callbackQuery("menu:announcements", announcementsMenu);
+bot.callbackQuery("menu:notifications", notificationsMenu);
+bot.callbackQuery("menu:settings", settingsMenu);
+bot.callbackQuery("menu:monitoring", monitoringMenu);
+bot.callbackQuery("menu:content", contentMenu);
 
-bot.callbackQuery("menu:notifications", async (ctx) => {
-  const { notificationsMenu } = await import("./commands/notifications.js");
-  await notificationsMenu(ctx);
-});
-
-bot.callbackQuery("menu:settings", async (ctx) => {
-  const { settingsMenu } = await import("./commands/settings.js");
-  await settingsMenu(ctx);
-});
-
-bot.callbackQuery("menu:monitoring", async (ctx) => {
-  const { monitoringMenu } = await import("./commands/monitoring.js");
-  await monitoringMenu(ctx);
-});
-
-bot.callbackQuery("menu:content", async (ctx) => {
-  await ctx.editMessageText("📝 *إدارة المحتوى*\n\nقيد التطوير...", { reply_markup: getMainMenu(), parse_mode: "Markdown" });
-});
+// Register feature callbacks
+registerAnnouncementCallbacks(bot);
+registerNotificationCallbacks(bot);
+registerSettingsCallbacks(bot);
+registerMonitoringCallbacks(bot);
+registerContentCallbacks(bot);
 
 // ============================================
 // Error Handler

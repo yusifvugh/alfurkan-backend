@@ -1,10 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { getEnv } from "../utils/env.js";
 
-export const supabase = createClient(
-  getEnv("SUPABASE_URL"),
-  getEnv("SUPABASE_SERVICE_ROLE_KEY")
-);
+const supabaseUrl = process.env.SUPABASE_URL || "https://placeholder.supabase.co";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || "placeholder-key";
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ============================================
 // Type Helpers

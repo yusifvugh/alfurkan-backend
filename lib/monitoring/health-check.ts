@@ -1,10 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "../supabase/client.js";
 import { getEnv } from "../utils/env.js";
-
-const supabase = createClient(
-  getEnv("SUPABASE_URL"),
-  getEnv("SUPABASE_SERVICE_ROLE_KEY")
-);
 
 interface HealthCheckResult {
   healthy: boolean;
