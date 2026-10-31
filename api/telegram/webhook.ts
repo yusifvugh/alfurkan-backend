@@ -1,7 +1,7 @@
 import { bot } from "./bot.js";
 import type { Update } from "grammy/types";
 
-// Vercel Serverless Function Handler
+// Vercel Serverless Function Handler - Force redeploy 2024-10-31
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
