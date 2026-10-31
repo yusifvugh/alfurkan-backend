@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { getEnv } from "../../lib/utils/env.js";
+import { createHmac, timingSafeEqual } from "crypto";
 
 const supabase = createClient(
   getEnv("SUPABASE_URL"),
@@ -12,7 +13,17 @@ function verifySentrySignature(signature: string | null, payload: string): boole
   const secret = getEnv("SENTRY_WEBHOOK_SECRET");
   if (!secret) return false;
   
-  return signature.startsWith("sha256=");
+  if (!signature.startsWith("sha256=")) return false;
+  
+  const providedSignature = signature.slice(7); // Remove "sha256=" prefix
+  const expectedSignature = createHmac("sha256", secret).update(payload).digest("hex");
+  
+  // Use timing-safe comparison
+  const providedBuffer = Buffer.from(providedSignature, "hex");
+  const expectedBuffer = Buffer.from(expectedSignature, "hex");
+  
+  if (providedBuffer.length !== expectedBuffer.length) return false;
+  return timingSafeEqual(providedBuffer, expectedBuffer);
 }
 
 interface SentryAlertPayload {
