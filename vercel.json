@@ -9,10 +9,6 @@
     {
       "path": "/api/monitoring/index?action=daily-summary",
       "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/monitoring/index?action=publish-scheduled",
-      "schedule": "*/5 * * * *"
     }
   ],
   "rewrites": [
