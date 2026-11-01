@@ -30,25 +30,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     // ─── POST start chat ───────────────────────────────────────────────────
     if (req.method === 'POST' && action === 'start') {
-      const { device_id: bodyDeviceId, blog_post_id } = req.body;
+      const { 
+        device_id: bodyDeviceId, 
+        blog_post_id,
+        google_id,
+        user_name,
+        user_email,
+        user_avatar,
+      } = req.body;
       const dId = (bodyDeviceId || device_id) as string;
 
       if (!dId) return res.status(400).json({ error: 'device_id مطلوب' });
 
-      // Check user exists
+      // Check or upsert user
       const { data: user } = await supabase
         .from('app_users')
         .select('device_id, fcm_token')
         .eq('device_id', dId)
         .single();
 
-      if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+      if (user && (google_id || user_name || user_email || user_avatar)) {
+        await supabase.from('app_users').update({
+          ...(google_id && { google_id }),
+          ...(user_name && { user_name }),
+          ...(user_email && { user_email }),
+          ...(user_avatar && { user_avatar }),
+        }).eq('device_id', dId);
+      }
 
-      // Find existing chat for this device (and optionally this blog post)
+      // Find existing chat for this user/device (and optionally this blog post)
       let chatQuery = supabase
         .from('chats')
-        .select('*')
-        .eq('device_id', dId);
+        .select('*');
+
+      if (google_id) {
+        chatQuery = chatQuery.eq('google_id', google_id);
+      } else {
+        chatQuery = chatQuery.eq('device_id', dId);
+      }
 
       if (blog_post_id) {
         chatQuery = chatQuery.eq('blog_post_id', blog_post_id);
@@ -59,6 +78,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { data: existing } = await chatQuery.single();
 
       if (existing) {
+        if (google_id || user_name || user_email || user_avatar) {
+          await supabase.from('chats').update({
+            ...(google_id && { google_id }),
+            ...(user_name && { user_name }),
+            ...(user_email && { user_email }),
+            ...(user_avatar && { user_avatar }),
+            device_id: dId,
+          }).eq('id', existing.id);
+        }
         return res.status(200).json({ chat: existing, created: false });
       }
 
@@ -68,6 +96,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .insert({
           device_id: dId,
           blog_post_id: blog_post_id || null,
+          google_id: google_id || null,
+          user_name: user_name || null,
+          user_email: user_email || null,
+          user_avatar: user_avatar || null,
         })
         .select()
         .single();
@@ -112,6 +144,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .select(`
           id,
           device_id,
+          user_name,
+          user_email,
+          user_avatar,
+          google_id,
           blog_post_id,
           last_message_at,
           last_message_preview,
