@@ -237,3 +237,103 @@ BEGIN
     AND expires_at <= NOW();
 END;
 $$ language 'plpgsql';
+
+
+-- ============================================
+-- Studio Features Migration
+-- Alfurkan Studio v1.0
+-- Run in Supabase Dashboard → SQL Editor
+-- ============================================
+
+-- Blog Posts
+CREATE TABLE IF NOT EXISTS blog_posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  excerpt TEXT,
+  cover_image_url TEXT,
+  tags TEXT[] DEFAULT '{}',
+  is_pinned BOOLEAN DEFAULT FALSE,
+  is_published BOOLEAN DEFAULT FALSE,
+  published_at TIMESTAMPTZ,
+  view_count INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Chat Conversations (one per user per context)
+CREATE TABLE IF NOT EXISTS chats (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  device_id TEXT NOT NULL REFERENCES app_users(device_id) ON DELETE CASCADE,
+  blog_post_id UUID REFERENCES blog_posts(id) ON DELETE SET NULL,
+  last_message_at TIMESTAMPTZ DEFAULT NOW(),
+  last_message_preview TEXT,
+  unread_by_admin INT DEFAULT 0,
+  unread_by_user INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Chat Messages
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chat_id UUID NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  sender TEXT NOT NULL CHECK (sender IN ('admin', 'user')),
+  content TEXT NOT NULL,
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_blog_posts_published ON blog_posts(is_published, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_blog_posts_pinned ON blog_posts(is_pinned) WHERE is_pinned = TRUE;
+CREATE INDEX IF NOT EXISTS idx_chats_device ON chats(device_id);
+CREATE INDEX IF NOT EXISTS idx_chats_last_msg ON chats(last_message_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_chat ON chat_messages(chat_id, created_at ASC);
+
+-- RLS
+ALTER TABLE blog_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+
+-- Public can read published posts
+DROP POLICY IF EXISTS "Public read published blog posts" ON blog_posts;
+CREATE POLICY "Public read published blog posts" ON blog_posts
+  FOR SELECT USING (is_published = true);
+
+-- Service role full access
+DROP POLICY IF EXISTS "Service role full blog" ON blog_posts;
+CREATE POLICY "Service role full blog" ON blog_posts
+  FOR ALL USING (auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS "Service role full chats" ON chats;
+CREATE POLICY "Service role full chats" ON chats
+  FOR ALL USING (auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS "Service role full messages" ON chat_messages;
+CREATE POLICY "Service role full messages" ON chat_messages
+  FOR ALL USING (auth.role() = 'service_role');
+
+-- Auto-update updated_at for blog_posts
+DROP TRIGGER IF EXISTS update_blog_posts_updated_at ON blog_posts;
+CREATE TRIGGER update_blog_posts_updated_at
+  BEFORE UPDATE ON blog_posts
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Atomic increment functions for unread counters
+CREATE OR REPLACE FUNCTION increment_unread_admin(chat_id_param UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE chats SET unread_by_admin = unread_by_admin + 1 WHERE id = chat_id_param;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION increment_unread_user(chat_id_param UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE chats SET unread_by_user = unread_by_user + 1 WHERE id = chat_id_param;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Enable Realtime for live chat
+ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE chats;

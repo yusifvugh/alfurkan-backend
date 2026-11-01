@@ -227,6 +227,25 @@ export async function sendFCMBatch(
 }
 
 // ============================================
+// Send push to a single token (for chat notifications, etc.)
+// ============================================
+
+export async function sendPushNotification(opts: {
+  token: string;
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+  imageUrl?: string;
+}): Promise<FCMResult> {
+  return sendFCMBatch([opts.token], {
+    title: opts.title,
+    body: opts.body,
+    data: opts.data,
+    imageUrl: opts.imageUrl,
+  });
+}
+
+// ============================================
 // Send push for an announcement
 // ============================================
 
