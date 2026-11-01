@@ -334,9 +334,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Enable Realtime for live chat
-ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE chats;
+-- Enable Realtime for live chat (safe check)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'chat_messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'chats'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE chats;
+  END IF;
+END $$;
 
 -- User Profile & Google Account on Chats & App Users
 ALTER TABLE app_users ADD COLUMN IF NOT EXISTS google_id TEXT;
