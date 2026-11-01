@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { supabase } from "../supabase/client.js";
 
 export interface FCMPayload {
@@ -76,7 +77,11 @@ async function sendFCMLegacyBatch(
 
 async function getOAuthAccessToken(serviceAccountJson: string): Promise<string | null> {
   try {
-    const sa = JSON.parse(serviceAccountJson);
+    let raw = serviceAccountJson.trim();
+    if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+      raw = raw.slice(1, -1);
+    }
+    const sa = JSON.parse(raw);
     const now = Math.floor(Date.now() / 1000);
 
     // Build JWT header + payload
@@ -96,30 +101,13 @@ async function getOAuthAccessToken(serviceAccountJson: string): Promise<string |
     const claimB64 = encode(claim);
     const unsigned = `${headerB64}.${claimB64}`;
 
-    // Sign with RSA private key using Web Crypto
-    const pemKey = sa.private_key as string;
-    const pemBody = pemKey
-      .replace(/-----BEGIN PRIVATE KEY-----/, "")
-      .replace(/-----END PRIVATE KEY-----/, "")
-      .replace(/\s/g, "");
+    // Clean private key ensuring newline characters are intact
+    const privateKey = (sa.private_key as string).replace(/\\n/g, "\n");
 
-    const keyBuffer = Buffer.from(pemBody, "base64");
-
-    const cryptoKey = await crypto.subtle.importKey(
-      "pkcs8",
-      keyBuffer,
-      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-      false,
-      ["sign"]
-    );
-
-    const signatureBuffer = await crypto.subtle.sign(
-      "RSASSA-PKCS1-v1_5",
-      cryptoKey,
-      Buffer.from(unsigned)
-    );
-
-    const signature = Buffer.from(signatureBuffer).toString("base64url");
+    // Sign with Node.js crypto (RSA-SHA256)
+    const sign = crypto.createSign("RSA-SHA256");
+    sign.update(unsigned);
+    const signature = sign.sign(privateKey, "base64url");
     const jwt = `${unsigned}.${signature}`;
 
     // Exchange JWT for access token
