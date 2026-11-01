@@ -7,9 +7,20 @@
   },
   "crons": [
     {
-      "path": "/api/monitoring/daily-summary",
+      "path": "/api/monitoring/index?action=daily-summary",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/monitoring/index?action=publish-scheduled",
+      "schedule": "*/5 * * * *"
     }
+  ],
+  "rewrites": [
+    { "source": "/api/monitoring/health",             "destination": "/api/monitoring/index?action=health" },
+    { "source": "/api/monitoring/daily-summary",      "destination": "/api/monitoring/index?action=daily-summary" },
+    { "source": "/api/monitoring/publish-scheduled",  "destination": "/api/monitoring/index?action=publish-scheduled" },
+    { "source": "/api/monitoring/sentry-webhook",     "destination": "/api/monitoring/index?action=sentry-webhook" },
+    { "source": "/api/telegram/set-webhook",          "destination": "/api/telegram/webhook?action=set" }
   ],
   "headers": [
     {
