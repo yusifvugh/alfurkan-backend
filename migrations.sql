@@ -363,3 +363,29 @@ ALTER TABLE chats ADD COLUMN IF NOT EXISTS user_name TEXT;
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS user_email TEXT;
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS user_avatar TEXT;
 CREATE INDEX IF NOT EXISTS idx_chats_google_id ON chats(google_id);
+
+-- User Sync Data (Bookmarks, Ayah Notes, Khatma progress)
+CREATE TABLE IF NOT EXISTS user_sync_data (
+  google_id TEXT PRIMARY KEY,
+  bookmarks JSONB DEFAULT '[]',
+  notes JSONB DEFAULT '[]',
+  khatma JSONB DEFAULT '{}',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- User Feedback & Bug Reports
+CREATE TABLE IF NOT EXISTS feedback_reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  device_id TEXT,
+  google_id TEXT,
+  user_name TEXT,
+  user_contact TEXT,
+  type TEXT NOT NULL DEFAULT 'other',
+  message TEXT NOT NULL,
+  device_info JSONB DEFAULT '{}',
+  images TEXT[] DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'in_progress', 'resolved')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback_reports(status, created_at DESC);
