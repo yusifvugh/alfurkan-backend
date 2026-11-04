@@ -132,7 +132,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      return res.status(200).json({ messages: messages || [] });
+
+      const { data: chatTyping } = await supabase
+        .from('chats')
+        .select('user_typing, admin_typing, user_typing_at, admin_typing_at')
+        .eq('id', chat_id as string)
+        .single();
+
+      const now = Date.now();
+      const typing = {
+        user: !!(chatTyping?.user_typing && chatTyping?.user_typing_at && (now - new Date(chatTyping.user_typing_at).getTime()) < 6000),
+        admin: !!(chatTyping?.admin_typing && chatTyping?.admin_typing_at && (now - new Date(chatTyping.admin_typing_at).getTime()) < 6000),
+      };
+
+      return res.status(200).json({ messages: messages || [], typing });
     }
 
     // ─── GET inbox (admin only) ────────────────────────────────────────────
@@ -195,6 +208,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await supabase.from('chats').update({
         last_message_at: new Date().toISOString(),
         last_message_preview: content.substring(0, 100),
+        ...(sender === 'user' ? { user_typing: false, user_typing_at: null } : { admin_typing: false, admin_typing_at: null }),
       }).eq('id', cId);
 
       // Atomic increment unread counter
@@ -224,7 +238,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (userRow?.fcm_token) {
             await sendPushNotification({
               token: userRow.fcm_token,
-              title: '📬 رسالة جديدة',
+              title: 'رسالة جديدة من المطور',
               body: content.substring(0, 100),
               data: { type: 'chat_message', chat_id: cId },
             }).catch(console.error);
@@ -233,6 +247,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       return res.status(201).json({ message });
+    }
+
+    // ─── POST/PUT typing indicator ───────────────────────────────────────────────
+    if ((req.method === 'POST' || req.method === 'PUT') && action === 'typing') {
+      const body = req.body || {};
+      const cId = (body.chat_id || chat_id) as string;
+      if (!cId) return res.status(400).json({ error: 'chat_id مطلوب' });
+
+      const typingRole = body.role === 'admin' ? 'admin' : 'user';
+      if (typingRole === 'admin' && !isAdmin(req)) return res.status(401).json({ error: 'غير مسموح' });
+
+      if (typingRole === 'user') {
+        const dId = (body.device_id || device_id) as string;
+        if (!dId) return res.status(400).json({ error: 'device_id مطلوب' });
+        const { data: chat } = await supabase.from('chats').select('device_id').eq('id', cId).single();
+        if (!chat || chat.device_id !== dId) return res.status(403).json({ error: 'غير مسموح' });
+      }
+
+      const field = typingRole === 'admin' ? 'admin_typing' : 'user_typing';
+      const timeField = typingRole === 'admin' ? 'admin_typing_at' : 'user_typing_at';
+      await supabase.from('chats').update({
+        [field]: !!body.is_typing,
+        [timeField]: body.is_typing ? new Date().toISOString() : null,
+      }).eq('id', cId);
+
+      return res.status(200).json({ success: true });
     }
 
     // ─── PUT mark as read ──────────────────────────────────────────────────

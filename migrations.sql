@@ -389,3 +389,9 @@ CREATE TABLE IF NOT EXISTS feedback_reports (
 );
 
 CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback_reports(status, created_at DESC);
+
+-- Typing indicators
+ALTER TABLE chats ADD COLUMN IF NOT EXISTS user_typing boolean DEFAULT false;
+ALTER TABLE chats ADD COLUMN IF NOT EXISTS admin_typing boolean DEFAULT false;
+ALTER TABLE chats ADD COLUMN IF NOT EXISTS user_typing_at timestamptz;
+ALTER TABLE chats ADD COLUMN IF NOT EXISTS admin_typing_at timestamptz;

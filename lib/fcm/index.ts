@@ -171,7 +171,12 @@ async function sendFCMv1Batch(
                 ...(payload.imageUrl ? { image: payload.imageUrl } : {}),
               },
               data: payload.data ?? {},
-              android: { priority: "high" },
+              android: {
+                priority: "high",
+                ...(payload.data?.type === 'chat_message'
+                  ? { channelId: "alfurkan_chat" }
+                  : {}),
+              },
               apns: {
                 payload: { aps: { sound: "default" } },
               },
