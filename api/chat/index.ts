@@ -222,6 +222,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Notify admin via Telegram (fire & forget)
         const { data: chatData } = await supabase.from('chats').select('device_id').eq('id', cId).single();
         console.log(`[chat] User ${chatData?.device_id} sent message to admin`);
+
+        // Push to Studio admin devices
+        const { data: adminTokens } = await supabase.from('admin_fcm_tokens').select('fcm_token');
+        const tokens = (adminTokens || []).map((r: any) => r.fcm_token).filter(Boolean);
+        for (const t of tokens) {
+          await sendPushNotification({
+            token: t,
+            title: 'رسالة جديدة من مستخدم',
+            body: content.substring(0, 100),
+            data: { type: 'chat_message', chat_id: cId },
+          }).catch(console.error);
+        }
       } else if (sender === 'admin') {
         // Notify user via FCM
         const { data: chatData } = await supabase

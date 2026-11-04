@@ -395,3 +395,10 @@ ALTER TABLE chats ADD COLUMN IF NOT EXISTS user_typing boolean DEFAULT false;
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS admin_typing boolean DEFAULT false;
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS user_typing_at timestamptz;
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS admin_typing_at timestamptz;
+
+-- Admin FCM tokens
+CREATE TABLE IF NOT EXISTS admin_fcm_tokens (device_id text PRIMARY KEY, fcm_token text NOT NULL, updated_at timestamptz DEFAULT now());
+
+-- Chat attachments
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_url text;
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_type text;
