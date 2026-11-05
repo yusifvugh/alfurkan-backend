@@ -67,9 +67,9 @@ bot.use(async (ctx, next) => {
     id => id && id !== "your-telegram-user-id" && id !== "PLACEHOLDER"
   );
 
-  const isAuthorized = validAdmins.length === 0 || 
-    (userId && validAdmins.includes(userId)) ||
-    (username && validAdmins.includes(username));
+  const isAuthorized = validAdmins.length > 0 &&
+      (userId && validAdmins.includes(userId)) ||
+      (username && validAdmins.includes(username))
 
   if (!isAuthorized) {
     await ctx.reply(
