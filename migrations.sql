@@ -1,9 +1,9 @@
--- ============================================
+﻿-- ============================================
 -- Alfurkan Backend Database Migrations
--- شغل هذا في Supabase Dashboard → SQL Editor
+-- Ø´ØºÙ„ Ù‡Ø°Ø§ ÙÙŠ Supabase Dashboard â†’ SQL Editor
 -- ============================================
 
--- 1. إعلانات التطبيق
+-- 1. Ø¥Ø¹Ù„Ø§Ù†Ø§Øª Ø§Ù„ØªØ·Ø¨ÙŠÙ‚
 CREATE TABLE IF NOT EXISTS announcements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
@@ -26,13 +26,13 @@ CREATE TABLE IF NOT EXISTS announcements (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- الترقية التلقائية للجداول المنشأة مسبقاً (إضافة الأعمدة الجديدة إن لم تكن موجودة)
+-- Ø§Ù„ØªØ±Ù‚ÙŠØ© Ø§Ù„ØªÙ„Ù‚Ø§Ø¦ÙŠØ© Ù„Ù„Ø¬Ø¯Ø§ÙˆÙ„ Ø§Ù„Ù…Ù†Ø´Ø£Ø© Ù…Ø³Ø¨Ù‚Ø§Ù‹ (Ø¥Ø¶Ø§ÙØ© Ø§Ù„Ø£Ø¹Ù…Ø¯Ø© Ø§Ù„Ø¬Ø¯ÙŠØ¯Ø© Ø¥Ù† Ù„Ù… ØªÙƒÙ† Ù…ÙˆØ¬ÙˆØ¯Ø©)
 ALTER TABLE announcements ADD COLUMN IF NOT EXISTS image_url TEXT;
 ALTER TABLE announcements ADD COLUMN IF NOT EXISTS action_url TEXT;
 ALTER TABLE announcements ADD COLUMN IF NOT EXISTS action_title TEXT;
 ALTER TABLE announcements ADD COLUMN IF NOT EXISTS internal_route TEXT;
 
--- 2. حملات الإشعارات
+-- 2. Ø­Ù…Ù„Ø§Øª Ø§Ù„Ø¥Ø´Ø¹Ø§Ø±Ø§Øª
 CREATE TABLE IF NOT EXISTS notification_campaigns (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS notification_campaigns (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. إعدادات النظام
+-- 3. Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§Ù„Ù†Ø¸Ø§Ù…
 CREATE TABLE IF NOT EXISTS system_config (
   key TEXT PRIMARY KEY,
   value JSONB NOT NULL,
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS system_config (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. سجل التدقيق (Audit Log)
+-- 4. Ø³Ø¬Ù„ Ø§Ù„ØªØ¯Ù‚ÙŠÙ‚ (Audit Log)
 CREATE TABLE IF NOT EXISTS audit_logs (
   id BIGSERIAL PRIMARY KEY,
   action TEXT NOT NULL,
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. مستخدمو التطبيق (للإشعارات المستهدفة وحفظ توكنات الأجهزة)
+-- 5. Ù…Ø³ØªØ®Ø¯Ù…Ùˆ Ø§Ù„ØªØ·Ø¨ÙŠÙ‚ (Ù„Ù„Ø¥Ø´Ø¹Ø§Ø±Ø§Øª Ø§Ù„Ù…Ø³ØªÙ‡Ø¯ÙØ© ÙˆØ­ÙØ¸ ØªÙˆÙƒÙ†Ø§Øª Ø§Ù„Ø£Ø¬Ù‡Ø²Ø©)
 CREATE TABLE IF NOT EXISTS app_users (
   device_id TEXT PRIMARY KEY,
   fcm_token TEXT,
@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS app_users (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ترقية نوع device_id ليكون TEXT لدعم التوافق مع معرّفات الأجهزة المختلفة
+-- ØªØ±Ù‚ÙŠØ© Ù†ÙˆØ¹ device_id Ù„ÙŠÙƒÙˆÙ† TEXT Ù„Ø¯Ø¹Ù… Ø§Ù„ØªÙˆØ§ÙÙ‚ Ù…Ø¹ Ù…Ø¹Ø±Ù‘ÙØ§Øª Ø§Ù„Ø£Ø¬Ù‡Ø²Ø© Ø§Ù„Ù…Ø®ØªÙ„ÙØ©
 DO $$
 BEGIN
   IF EXISTS (
@@ -95,7 +95,7 @@ BEGIN
   END IF;
 END $$;
 
--- 6. سجل التنبيهات
+-- 6. Ø³Ø¬Ù„ Ø§Ù„ØªÙ†Ø¨ÙŠÙ‡Ø§Øª
 CREATE TABLE IF NOT EXISTS alert_logs (
   id BIGSERIAL PRIMARY KEY,
   type TEXT NOT NULL,
@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS alert_logs (
   metadata JSONB DEFAULT '{}'
 );
 
--- فهارس للأداء
+-- ÙÙ‡Ø§Ø±Ø³ Ù„Ù„Ø£Ø¯Ø§Ø¡
 CREATE INDEX IF NOT EXISTS idx_announcements_published ON announcements(is_published, published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_announcements_scheduled ON announcements(scheduled_at) WHERE scheduled_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_campaigns_status ON notification_campaigns(status, scheduled_at);
@@ -116,7 +116,7 @@ CREATE INDEX IF NOT EXISTS idx_app_users_country ON app_users(country);
 CREATE INDEX IF NOT EXISTS idx_alert_logs_timestamp ON alert_logs(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_alert_logs_type ON alert_logs(type, severity);
 
--- تفعيل RLS (Row Level Security)
+-- ØªÙØ¹ÙŠÙ„ RLS (Row Level Security)
 ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notification_campaigns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE system_config ENABLE ROW LEVEL SECURITY;
@@ -124,7 +124,7 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE alert_logs ENABLE ROW LEVEL SECURITY;
 
--- سياسات الأمان: قراءة عامة للإعلانات المنشورة
+-- Ø³ÙŠØ§Ø³Ø§Øª Ø§Ù„Ø£Ù…Ø§Ù†: Ù‚Ø±Ø§Ø¡Ø© Ø¹Ø§Ù…Ø© Ù„Ù„Ø¥Ø¹Ù„Ø§Ù†Ø§Øª Ø§Ù„Ù…Ù†Ø´ÙˆØ±Ø©
 DROP POLICY IF EXISTS "Public read published announcements" ON announcements;
 CREATE POLICY "Public read published announcements" ON announcements
   FOR SELECT USING (
@@ -133,7 +133,7 @@ CREATE POLICY "Public read published announcements" ON announcements
     AND (scheduled_at IS NULL OR scheduled_at <= NOW())
   );
 
--- سياسات الأمان: Service Role كامل الصلاحيات (للباك إند وبوت تيليجرام)
+-- Ø³ÙŠØ§Ø³Ø§Øª Ø§Ù„Ø£Ù…Ø§Ù†: Service Role ÙƒØ§Ù…Ù„ Ø§Ù„ØµÙ„Ø§Ø­ÙŠØ§Øª (Ù„Ù„Ø¨Ø§Ùƒ Ø¥Ù†Ø¯ ÙˆØ¨ÙˆØª ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…)
 DROP POLICY IF EXISTS "Service role full access" ON announcements;
 CREATE POLICY "Service role full access" ON announcements
   FOR ALL USING (auth.role() = 'service_role');
@@ -158,33 +158,33 @@ DROP POLICY IF EXISTS "Service role full access" ON alert_logs;
 CREATE POLICY "Service role full access" ON alert_logs
   FOR ALL USING (auth.role() = 'service_role');
 
--- إعدادات افتراضية للنظام
+-- Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§ÙØªØ±Ø§Ø¶ÙŠØ© Ù„Ù„Ù†Ø¸Ø§Ù…
 INSERT INTO system_config (key, value, description, is_secret) VALUES
-('maintenance_mode', 'false', 'وضع الصيانة', false),
-('maintenance_message', '"التطبيق تحت الصيانة، سيعمل قريباً"', 'رسالة الصيانة', false),
-('force_update_version', 'null', 'إصدار التحديث الإلزامي', false),
-('min_supported_version', '"1.0.0"', 'أدنى إصدار مدعوم', false),
-('announcements_enabled', 'true', 'تفعيل الإعلانات', false),
-('max_announcement_priority', '"high"', 'أقصى أولوية إعلان', false),
-('auto_archive_days', '30', 'أيام الأرشفة التلقائية', false),
-('notifications_enabled', 'true', 'تفعيل الإشعارات', false),
-('max_daily_notifications_per_user', '5', 'حد الإشعارات اليومية لكل مستخدم', false),
-('quiet_hours_enabled', 'true', 'ساعات الهدوء', false),
-('quiet_hours_start', '"22:00"', 'بداية الهدوء', false),
-('quiet_hours_end', '"08:00"', 'نهاية الهدوء', false),
-('alerting_enabled', 'true', 'تفعيل التنبيهات', false),
-('crash_alert_threshold', '10', 'عتبة تنبيه الانهيارات/ساعة', false),
-('performance_alert_threshold_ms', '3000', 'عتبة تنبيه الأداء (ملي ثانية)', false),
-('error_rate_alert_threshold', '5', 'عتبة معدل الأخطاء %', false),
-('fcm_enabled', 'true', 'تفعيل FCM', false),
-('sentry_enabled', 'true', 'تفعيل Sentry', false),
-('supabase_enabled', 'true', 'تفعيل Supabase', false),
-('latest_version', '"1.0.0"', 'أحدث إصدار', false),
-('latest_build_number', '1', 'أحدث رقم بناء', false),
-('release_notes_url', '"https://github.com/yusifvugh/al-furkan/releases"', 'رابط ملاحظات الإصدار', false)
+('maintenance_mode', 'false', 'ÙˆØ¶Ø¹ Ø§Ù„ØµÙŠØ§Ù†Ø©', false),
+('maintenance_message', '"Ø§Ù„ØªØ·Ø¨ÙŠÙ‚ ØªØ­Øª Ø§Ù„ØµÙŠØ§Ù†Ø©ØŒ Ø³ÙŠØ¹Ù…Ù„ Ù‚Ø±ÙŠØ¨Ø§Ù‹"', 'Ø±Ø³Ø§Ù„Ø© Ø§Ù„ØµÙŠØ§Ù†Ø©', false),
+('force_update_version', 'null', 'Ø¥ØµØ¯Ø§Ø± Ø§Ù„ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø¥Ù„Ø²Ø§Ù…ÙŠ', false),
+('min_supported_version', '"1.0.0"', 'Ø£Ø¯Ù†Ù‰ Ø¥ØµØ¯Ø§Ø± Ù…Ø¯Ø¹ÙˆÙ…', false),
+('announcements_enabled', 'true', 'ØªÙØ¹ÙŠÙ„ Ø§Ù„Ø¥Ø¹Ù„Ø§Ù†Ø§Øª', false),
+('max_announcement_priority', '"high"', 'Ø£Ù‚ØµÙ‰ Ø£ÙˆÙ„ÙˆÙŠØ© Ø¥Ø¹Ù„Ø§Ù†', false),
+('auto_archive_days', '30', 'Ø£ÙŠØ§Ù… Ø§Ù„Ø£Ø±Ø´ÙØ© Ø§Ù„ØªÙ„Ù‚Ø§Ø¦ÙŠØ©', false),
+('notifications_enabled', 'true', 'ØªÙØ¹ÙŠÙ„ Ø§Ù„Ø¥Ø´Ø¹Ø§Ø±Ø§Øª', false),
+('max_daily_notifications_per_user', '5', 'Ø­Ø¯ Ø§Ù„Ø¥Ø´Ø¹Ø§Ø±Ø§Øª Ø§Ù„ÙŠÙˆÙ…ÙŠØ© Ù„ÙƒÙ„ Ù…Ø³ØªØ®Ø¯Ù…', false),
+('quiet_hours_enabled', 'true', 'Ø³Ø§Ø¹Ø§Øª Ø§Ù„Ù‡Ø¯ÙˆØ¡', false),
+('quiet_hours_start', '"22:00"', 'Ø¨Ø¯Ø§ÙŠØ© Ø§Ù„Ù‡Ø¯ÙˆØ¡', false),
+('quiet_hours_end', '"08:00"', 'Ù†Ù‡Ø§ÙŠØ© Ø§Ù„Ù‡Ø¯ÙˆØ¡', false),
+('alerting_enabled', 'true', 'ØªÙØ¹ÙŠÙ„ Ø§Ù„ØªÙ†Ø¨ÙŠÙ‡Ø§Øª', false),
+('crash_alert_threshold', '10', 'Ø¹ØªØ¨Ø© ØªÙ†Ø¨ÙŠÙ‡ Ø§Ù„Ø§Ù†Ù‡ÙŠØ§Ø±Ø§Øª/Ø³Ø§Ø¹Ø©', false),
+('performance_alert_threshold_ms', '3000', 'Ø¹ØªØ¨Ø© ØªÙ†Ø¨ÙŠÙ‡ Ø§Ù„Ø£Ø¯Ø§Ø¡ (Ù…Ù„ÙŠ Ø«Ø§Ù†ÙŠØ©)', false),
+('error_rate_alert_threshold', '5', 'Ø¹ØªØ¨Ø© Ù…Ø¹Ø¯Ù„ Ø§Ù„Ø£Ø®Ø·Ø§Ø¡ %', false),
+('fcm_enabled', 'true', 'ØªÙØ¹ÙŠÙ„ FCM', false),
+('sentry_enabled', 'true', 'ØªÙØ¹ÙŠÙ„ Sentry', false),
+('supabase_enabled', 'true', 'ØªÙØ¹ÙŠÙ„ Supabase', false),
+('latest_version', '"1.0.0"', 'Ø£Ø­Ø¯Ø« Ø¥ØµØ¯Ø§Ø±', false),
+('latest_build_number', '1', 'Ø£Ø­Ø¯Ø« Ø±Ù‚Ù… Ø¨Ù†Ø§Ø¡', false),
+('release_notes_url', '"https://github.com/yusifvugh/al-furkan/releases"', 'Ø±Ø§Ø¨Ø· Ù…Ù„Ø§Ø­Ø¸Ø§Øª Ø§Ù„Ø¥ØµØ¯Ø§Ø±', false)
 ON CONFLICT (key) DO NOTHING;
 
--- دالة لتحديث updated_at تلقائياً
+-- Ø¯Ø§Ù„Ø© Ù„ØªØ­Ø¯ÙŠØ« updated_at ØªÙ„Ù‚Ø§Ø¦ÙŠØ§Ù‹
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -193,7 +193,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- تريجر لتحديث updated_at
+-- ØªØ±ÙŠØ¬Ø± Ù„ØªØ­Ø¯ÙŠØ« updated_at
 DROP TRIGGER IF EXISTS update_announcements_updated_at ON announcements;
 CREATE TRIGGER update_announcements_updated_at
   BEFORE UPDATE ON announcements
@@ -204,7 +204,7 @@ CREATE TRIGGER update_system_config_updated_at
   BEFORE UPDATE ON system_config
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- عرض للإعلانات النشطة (للاستخدام في التطبيق)
+-- Ø¹Ø±Ø¶ Ù„Ù„Ø¥Ø¹Ù„Ø§Ù†Ø§Øª Ø§Ù„Ù†Ø´Ø·Ø© (Ù„Ù„Ø§Ø³ØªØ®Ø¯Ø§Ù… ÙÙŠ Ø§Ù„ØªØ·Ø¨ÙŠÙ‚)
 CREATE OR REPLACE VIEW active_announcements AS
 SELECT 
   id, 
@@ -226,7 +226,7 @@ WHERE is_published = true
   AND (scheduled_at IS NULL OR scheduled_at <= NOW())
 ORDER BY priority DESC, published_at DESC;
 
--- دالة لتنظيف الإعلانات منتهية الصلاحية
+-- Ø¯Ø§Ù„Ø© Ù„ØªÙ†Ø¸ÙŠÙ Ø§Ù„Ø¥Ø¹Ù„Ø§Ù†Ø§Øª Ù…Ù†ØªÙ‡ÙŠØ© Ø§Ù„ØµÙ„Ø§Ø­ÙŠØ©
 CREATE OR REPLACE FUNCTION cleanup_expired_announcements()
 RETURNS void AS $$
 BEGIN
@@ -242,7 +242,7 @@ $$ language 'plpgsql';
 -- ============================================
 -- Studio Features Migration
 -- Alfurkan Studio v1.0
--- Run in Supabase Dashboard → SQL Editor
+-- Run in Supabase Dashboard â†’ SQL Editor
 -- ============================================
 
 -- Blog Posts
@@ -261,6 +261,11 @@ CREATE TABLE IF NOT EXISTS blog_posts (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Blog category taxonomy
+ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE blog_posts DROP CONSTRAINT IF EXISTS blog_posts_category_check;
+ALTER TABLE blog_posts ADD CONSTRAINT blog_posts_category_check
+  CHECK (category IS NULL OR category IN ('تutfira', 'Tafsir', 'Stories', 'Spiritual', 'Youth', 'Academic'));
 -- Chat Conversations (one per user per context)
 CREATE TABLE IF NOT EXISTS chats (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -286,6 +291,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_blog_posts_published ON blog_posts(is_published, published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_blog_posts_pinned ON blog_posts(is_pinned) WHERE is_pinned = TRUE;
+CREATE INDEX IF NOT EXISTS idx_blog_posts_category ON blog_posts(category);
 CREATE INDEX IF NOT EXISTS idx_chats_device ON chats(device_id);
 CREATE INDEX IF NOT EXISTS idx_chats_last_msg ON chats(last_message_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_chat ON chat_messages(chat_id, created_at ASC);
@@ -402,3 +408,4 @@ CREATE TABLE IF NOT EXISTS admin_fcm_tokens (device_id text PRIMARY KEY, fcm_tok
 -- Chat attachments
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_url text;
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_type text;
+
