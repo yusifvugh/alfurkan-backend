@@ -1,8 +1,8 @@
 {
   "name": "alfurkan-backend",
   "version": "1.0.0",
-  "description": "Alfurkan Telegram Control Center & Monitoring Backend",
-  "main": "api/telegram/webhook.ts",
+  "description": "Alfurkan Backend - Studio Management & Monitoring API",
+  "main": "api/monitoring/index.ts",
   "scripts": {
     "dev": "vercel dev",
     "build": "tsc --noEmit",
@@ -10,21 +10,16 @@
     "lint": "eslint . --ext .ts"
   },
   "keywords": [
-    "telegram",
-    "bot",
     "vercel",
     "monitoring",
-    "alfurkan"
+    "alfurkan",
+    "studio",
+    "supabase"
   ],
   "author": "Alfurkan Team",
   "license": "MIT",
   "dependencies": {
-    "grammy": "^1.25.0",
-    "@grammyjs/conversations": "^1.2.0",
-    "@grammyjs/parse-mode": "^1.9.0",
-    "@grammyjs/files": "^1.0.0",
     "@supabase/supabase-js": "^2.45.0",
-    "@vercel/kv": "^2.0.0",
     "zod": "^3.23.0",
     "typescript": "^5.5.0",
     "@types/node": "^22.0.0",

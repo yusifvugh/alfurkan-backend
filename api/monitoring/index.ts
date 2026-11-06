@@ -1,7 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import { getEnv } from "../../lib/utils/env.js";
-import { sendAnnouncementPush } from "../../lib/fcm/index.js";
-import { createHmac, timingSafeEqual } from "crypto";
 
 const supabase = createClient(
   getEnv("SUPABASE_URL"),
@@ -124,13 +122,6 @@ async function handlePublishScheduled(
 
         if (!updateErr) {
           publishedList.push(ann.title);
-          await sendAnnouncementPush(ann);
-          await notifyAdminOnTelegram(
-            `📢 *تم نشر إعلان مجدول تلقائياً:*\n` +
-              `• *العنوان:* ${ann.title}\n` +
-              `• *النوع:* ${ann.type || "عام"}\n` +
-              `• *الوقت:* ${new Date().toLocaleTimeString("ar-EG")}`
-          );
         }
       }
     }
@@ -170,12 +161,7 @@ async function handleDailySummary(
     const notificationStats = { campaignsSent: 0, notificationsDelivered: 0, notificationsFailed: 0 };
     const message = formatDailySummary(sentryStats, notificationStats);
 
-    const adminChat = process.env.ADMIN_CHAT_ID;
-    if (adminChat) {
-      await notifyAdminOnTelegram(message, adminChat);
-    }
-
-    return send(200, { ok: true, sent: true });
+    return send(200, { ok: true, sent: true, message });
   } catch (error) {
     console.error("Daily summary error:", error);
     return send(500, { ok: false, error: String(error) });
