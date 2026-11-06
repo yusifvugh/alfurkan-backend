@@ -1,5 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
+﻿import { createClient } from "@supabase/supabase-js";
 import { getEnv } from "../../lib/utils/env.js";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 const supabase = createClient(
   getEnv("SUPABASE_URL"),
@@ -205,21 +206,21 @@ async function fetchSentryStats() {
 
 function formatDailySummary(sentry: any, notifications: any): string {
   const date = new Date().toLocaleDateString("ar-SA", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-  let msg = `📅 *الملخص اليومي - ${date}*\n\n`;
-  msg += `📊 *الأخطاء:*\n`;
-  msg += `   • إجمالي: ${sentry.totalErrors}\n`;
-  msg += `   • حرجة (Fatal): ${sentry.fatalErrors}\n`;
-  msg += `   • مستخدمون متأثرون: ${sentry.affectedUsers}\n`;
-  msg += `   • قضايا جديدة: ${sentry.newIssues}\n`;
-  msg += `   • قضايا محلولة: ${sentry.resolvedIssues}\n\n`;
-  msg += `📈 *الأداء:*\n`;
-  msg += `   • متوسط زمن الاستجابة: ${sentry.avgResponseTime}ms\n`;
-  msg += `   • معدل الأخطاء: ${sentry.errorRate}%\n`;
-  msg += `   • Uptime: ${sentry.uptime}%\n\n`;
-  msg += `🔔 *الإشعارات:*\n`;
-  msg += `   • حملات مرسلة: ${notifications.campaignsSent}\n`;
-  msg += `   • إشعارات مسلمة: ${notifications.notificationsDelivered}\n`;
-  msg += `   • فاشلة: ${notifications.notificationsFailed}\n\n`;
+  let msg = `ðŸ“… *Ø§Ù„Ù…Ù„Ø®Øµ Ø§Ù„ÙŠÙˆÙ…ÙŠ - ${date}*\n\n`;
+  msg += `ðŸ“Š *Ø§Ù„Ø£Ø®Ø·Ø§Ø¡:*\n`;
+  msg += `   â€¢ Ø¥Ø¬Ù…Ø§Ù„ÙŠ: ${sentry.totalErrors}\n`;
+  msg += `   â€¢ Ø­Ø±Ø¬Ø© (Fatal): ${sentry.fatalErrors}\n`;
+  msg += `   â€¢ Ù…Ø³ØªØ®Ø¯Ù…ÙˆÙ† Ù…ØªØ£Ø«Ø±ÙˆÙ†: ${sentry.affectedUsers}\n`;
+  msg += `   â€¢ Ù‚Ø¶Ø§ÙŠØ§ Ø¬Ø¯ÙŠØ¯Ø©: ${sentry.newIssues}\n`;
+  msg += `   â€¢ Ù‚Ø¶Ø§ÙŠØ§ Ù…Ø­Ù„ÙˆÙ„Ø©: ${sentry.resolvedIssues}\n\n`;
+  msg += `ðŸ“ˆ *Ø§Ù„Ø£Ø¯Ø§Ø¡:*\n`;
+  msg += `   â€¢ Ù…ØªÙˆØ³Ø· Ø²Ù…Ù† Ø§Ù„Ø§Ø³ØªØ¬Ø§Ø¨Ø©: ${sentry.avgResponseTime}ms\n`;
+  msg += `   â€¢ Ù…Ø¹Ø¯Ù„ Ø§Ù„Ø£Ø®Ø·Ø§Ø¡: ${sentry.errorRate}%\n`;
+  msg += `   â€¢ Uptime: ${sentry.uptime}%\n\n`;
+  msg += `ðŸ”” *Ø§Ù„Ø¥Ø´Ø¹Ø§Ø±Ø§Øª:*\n`;
+  msg += `   â€¢ Ø­Ù…Ù„Ø§Øª Ù…Ø±Ø³Ù„Ø©: ${notifications.campaignsSent}\n`;
+  msg += `   â€¢ Ø¥Ø´Ø¹Ø§Ø±Ø§Øª Ù…Ø³Ù„Ù…Ø©: ${notifications.notificationsDelivered}\n`;
+  msg += `   â€¢ ÙØ§Ø´Ù„Ø©: ${notifications.notificationsFailed}\n\n`;
   return msg;
 }
 
@@ -275,8 +276,7 @@ async function handleSentryWebhook(
       const issue = payload.data.issue;
       const shouldAlert = issue.level === "fatal" || (issue.userCount && issue.userCount > 100) || (issue.count && issue.count > 50);
       if (shouldAlert) {
-        const msg = `🚨 *خطأ حرج في التطبيق!*\n\n• *العنوان:* ${issue.title}\n• *المستوى:* ${issue.level}\n• *المتأثرون:* ${issue.userCount ?? 0}\n[🔗 عرض التفاصيل](${issue.permalink})`;
-        await notifyAdminOnTelegram(msg);
+        console.warn("Critical Sentry issue detected:", issue.title, issue.permalink);
       }
     }
 
@@ -287,20 +287,5 @@ async function handleSentryWebhook(
   }
 }
 
-async function notifyAdminOnTelegram(text: string, overrideChatId?: string) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = overrideChatId || process.env.ADMIN_CHAT_ID;
-  if (!token || !chatId) return;
 
-  try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: "Markdown",
-      }),
-    });
-  } catch (_) {}
-}
+
