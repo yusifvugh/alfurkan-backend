@@ -9,7 +9,7 @@
   },
   "crons": [
     {
-      "path": "/api/monitoring/index?action=daily-summary",
+      "path": "/api/monitoring/index",
       "schedule": "0 9 * * *"
     }
   ],
