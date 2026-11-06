@@ -1,65 +1,33 @@
-# 📖 دليل منظومة إدارة الإعلانات والمراقبة - تطبيق الفُرقان
+# دليل المنظومة - تطبيق الفُرقان
 
-تم بناء هذه المنظومة بالكامل لتكون مجانية 100% (Free Tier)، وتعتمد كلياً على **تطبيق AL-FURQAN STUDIO** كمركز إدارة و Hungerfull وسهل من الهاتف المحمول.
+## نظرة عامة
 
----
+تعتمد المنظومة الآن على تطبيق **AL-FURQAN STUDIO** منفصل كمركز إدارة، وليس على بوت تيليجرام.
 
-## 🏗️ 1. المكونات المعمارية لل_chan/system
+## المكونات الرئيسية
 
-```mermaid
-graph TD
-    A[مشرف Application عبر Studio App] -->|أوامراً و controlling| B[Vercel Serverless Backend]
+- **Vercel Serverless Backend** — ي hosts API endpoints للمراقبة والإعلانات وال managing
+- **Supabase PostgreSQL** — قاعدة بيانات لل(lday) الإعلانات، الإعدادات، سجل التدقيق
+- **Firebase Cloud Messaging (FCM)** — Crusade الإشعارات إلى تطبيق Flutter
+- **Sentry** — مراقبة الأعraith و registering الإحصائيات
+- **AL-FURQAN STUDIO** (Flutter منفصل) — تطبيق إدارة للمشرفين
 
-    B -->|حفظ الإعلانات والإعدادات| C[(Supabase PostgreSQL)]
-    B -->| Crusade الإشعارات اللحظية| D[Firebase Cloud Messaging - FCM]
-
-    E[تطبيق الفُرقان - Flutter] -->| registering Device والتوكن| B
-    E -->|جلب الإعلانات النشطة والismaintenance| B
-    E -->|بديل أوفلاين/مباشر| C
-    D -->| Crusade الإشعارات| E
-
-    E -->| registering الأعraith| F[Sentry]
-    E -->|إحصائيات الاستخدام| G[Firebase Analytics]
-    F -->|تنبيهات فورية بالأخطاء| B
-```
-
----
-
-## 🚀 2. خطوات التفعيل والocking (مهم للمطور والمشرف)
-
-### الخطوة 1: في منصة Vercel
-تأكد من وجود المتغيرات البيئية التالية في **Vercel -> Settings -> Environment Variables**:
+## المتغيرات البيئية المطلوبة في Vercel
 
 | المتغير | الوصف |
 | :--- | :--- |
 | `SUPABASE_URL` | رابط مشروع Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | مفتاح Service Role السري للوصول الكامل |
-| `FCM_SERVER_KEY` | مفتاح Cloud Messaging من إعدادات مشروع Firebase |
-| `CRON_SECRET` | كلمة سر لحماية استcalls المهام المجدولة |
+| `SUPABASE_SERVICE_ROLE_KEY` | مفتاح Service Role السري |
+| `FCM_SERVER_KEY` | مفتاح Firebase Cloud Messaging |
+| `CRON_SECRET` | كلمة سر لحماية المهام المجدولة |
+| `SENTRY_AUTH_TOKEN` | مفتاح Sentry للوصول إلى API |
 
-### الخطوة 2: قاعدة بيانات Supabase
-في لوحة تحكم Supabase -> اذهب إلى **SQL Editor** ونفّذ محتوى файл `migrations.sql` لإضافة الجدول التالية:
-- جدول `announcements`: لتخزين الإعلانات وروابطها وصورها.
-- جدول `device_registrations`: لتسجيل توكنات أجهزة المستخدمين للإشعارات.
-- جدول `system_config`: لإعدادات الصيانة والإصدار الإلزامي.
+## endpoints APIs
 
----
+انظر `README.md` لقائمة endpoints الكاملة.
 
-## 📲 3. مميزات تطبيق الفُرقان (Flutter)
+## المراقبة
 
-1. **نافذة الإعلانات المنبضة الذكية (`AnnouncementDialog`):**
-   - تصميم عربي إسلامي متناسق مع هوية Application.
-   - دعم كامل للوضع الداكن (Dark Mode).
-   - لا تعيق قراءة القرآن؛ تفتح بعد ثانية من فتح Application لضمان سلاسة الوجهة.
-   - الإعلانات العادية قابلة للإغلاق بحرية، بينما الإعلانات الإلزامية (`isMandatory`) تتطلب اتخاذ إجراء (مثل التحديث الإجباري).
-   - تخزين محلي (Cache) يتيق قراءة الإعلانات حتى في حال انقطاع الإنترنت.
-
-2. ** registering الأجهزة والإشعارات (`FCMService`):**
-   - طلب الصلاحيات بسلاسة على أندرويد 13 فما فوق.
-   - registering معرفDevice والتوكن تلقائياً في السيرفر دون إثقال الشبكة.
-   - إشعارات مخصصة في العمل بالخلفية والمقدمة.
-
-3. **التحليلات والخصوصية (`AnalyticsService`):**
-   - registering أحداث الاستخدام الرئيسية (فتح Application، قراءة السور، العلامات المرجعية).
-   - حماية كاملة للخصوصية: يتم registering أي بيانات حساسة أو نصوص بحث خاصة بال المستخدم.
-   - بطاقة خصوصية كاملة في **الإعدادات المتقدمة** تتيق للمستخدم تعطيل التحليلات في أي وقت.
+- Vercel Cron: يوميًا الساعة 9:00 صباحاً
+- GitHub Actions: فحص الصحة كل 15 دقيقة
+- تنبيهات Sentry: فورية للأعraith الحرجة
