@@ -39,15 +39,9 @@ jobs:
         run: |
           down_count=$(echo '${{ steps.health.outputs.body }}' | jq '[.checks[]? | select(.status == "down")] | length' || echo 0)
           echo "down_count=$down_count" >> $GITHUB_OUTPUT
-          
-      - name: Send Critical Alert (Telegram)
-        if: steps.health.outputs.http_code != '200' && steps.health.outputs.http_code != '000' && steps.health.outputs.http_code != '308'
-        run: |
-          message="🔴 *تنبيه: ملاحظة على استجابة الخادم*\n\n❌ HTTP Code: ${{ steps.health.outputs.http_code }}\n⏰ $(date -u +'%Y-%m-%d %H:%M:%S') UTC"
-          
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -H "Content-Type: application/json" \
-            -d "{\"chat_id\": \"${{ secrets.ADMIN_CHAT_ID }}\", \"text\": \"$message\", \"parse_mode\": \"Markdown\"}" || true
+          if [ "$down_count" != "0" ]; then
+            echo "has_down=true" >> $GITHUB_OUTPUT
+          fi
 
   # Deep health check every 15 minutes (more comprehensive)
   deep-health-check:
