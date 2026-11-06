@@ -1,4 +1,4 @@
-{
+﻿{
   "outputDirectory": "public",
   "functions": {
     "api/**/*.ts": {

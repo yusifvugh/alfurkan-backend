@@ -240,12 +240,19 @@ $$ language 'plpgsql';
 
 
 -- ============================================
+
+-- ============================================
+-- DEPRECATED TABLES (blog & chat removed)
+-- The following tables are kept for backward compatibility
+-- but are no longer used by the application.
+-- New queries should NOT reference these tables.
+-- ============================================
 -- Studio Features Migration
 -- Alfurkan Studio v1.0
 -- Run in Supabase Dashboard â†’ SQL Editor
 -- ============================================
 
--- Blog Posts
+-- Blog Posts [DEPRECATED - removed from app]
 CREATE TABLE IF NOT EXISTS blog_posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
@@ -266,7 +273,7 @@ ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS category TEXT;
 ALTER TABLE blog_posts DROP CONSTRAINT IF EXISTS blog_posts_category_check;
 ALTER TABLE blog_posts ADD CONSTRAINT blog_posts_category_check
   CHECK (category IS NULL OR category IN ('تutfira', 'Tafsir', 'Stories', 'Spiritual', 'Youth', 'Academic'));
--- Chat Conversations (one per user per context)
+-- Chat Conversations (one per user per context) [DEPRECATED - removed from app]
 CREATE TABLE IF NOT EXISTS chats (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   device_id TEXT NOT NULL REFERENCES app_users(device_id) ON DELETE CASCADE,
@@ -278,7 +285,7 @@ CREATE TABLE IF NOT EXISTS chats (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Chat Messages
+-- Chat Messages [DEPRECATED - removed from app]
 CREATE TABLE IF NOT EXISTS chat_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   chat_id UUID NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
@@ -296,7 +303,7 @@ CREATE INDEX IF NOT EXISTS idx_chats_device ON chats(device_id);
 CREATE INDEX IF NOT EXISTS idx_chats_last_msg ON chats(last_message_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_chat ON chat_messages(chat_id, created_at ASC);
 
--- RLS
+-- RLS [DEPRECATED - blog & chat tables]
 ALTER TABLE blog_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
@@ -408,4 +415,5 @@ CREATE TABLE IF NOT EXISTS admin_fcm_tokens (device_id text PRIMARY KEY, fcm_tok
 -- Chat attachments
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_url text;
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_type text;
+
 
