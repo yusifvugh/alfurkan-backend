@@ -83,7 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Users by version/platform (last 24h active)
     const { data: versionData } = await supabase
       .from('app_users')
-      .select('app_version, platform, last_active_at')
+      .select('app_version, platform, last_active_at, device_id')
       .gte('last_active_at', dayAgo.toISOString());
 
     // Aggregate by version+platform
